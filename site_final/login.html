@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion | TerrasyncAutomation</title>
+<meta name="description" content="Connectez-vous à votre portail TerrasyncAutomation pour accéder à vos outils IA.">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1419;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(15,20,25,0.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.1);padding:1rem 2rem}
+.header-content{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.logo-link{display:flex;align-items:center;gap:12px;text-decoration:none}
+.logo-link img{width:50px;height:50px;object-fit:contain;mix-blend-mode:screen}
+.logo-text{font-size:20px;font-weight:700;color:#fff}
+.logo-text span{color:#4a8fd8}
+nav{display:flex;gap:2rem;align-items:center}
+nav a{color:#9ca3af;text-decoration:none;font-weight:500;transition:.3s}
+nav a:hover{color:#fff}
+.container{flex:1;display:flex;align-items:center;justify-content:center;padding:120px 2rem 80px}
+.login-box{background:rgba(26,31,46,0.8);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:3rem;max-width:450px;width:100%}
+.login-box h1{font-size:32px;font-weight:800;margin-bottom:10px;text-align:center}
+.login-box h1 span{color:#4a8fd8}
+.login-box p{color:#9ca3af;text-align:center;margin-bottom:30px;font-size:15px}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;color:#9ca3af;font-size:14px;font-weight:500;margin-bottom:8px}
+.form-group input{width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:16px;transition:.3s}
+.form-group input:focus{outline:none;border-color:#4a8fd8;background:rgba(255,255,255,0.08)}
+.btn{width:100%;padding:1rem;background:#4a8fd8;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:.3s}
+.btn:hover{background:#3a7fc8;transform:translateY(-2px)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.divider{text-align:center;margin:30px 0;color:#9ca3af;font-size:14px}
+.info-box{background:rgba(74,143,216,0.1);border:1px solid rgba(74,143,216,0.3);border-radius:12px;padding:1rem;margin-top:20px;text-align:center}
+.info-box p{color:#9ca3af;font-size:14px;margin:0}
+.info-box a{color:#4a8fd8;text-decoration:none;font-weight:600}
+.toast{position:fixed;bottom:30px;right:30px;padding:1rem 2rem;border-radius:12px;background:#1a1f2e;border:1px solid rgba(255,255,255,0.2);color:#fff;display:none;z-index:200;max-width:350px}
+.toast.show{display:block;animation:slideIn .3s}
+.toast.success{border-color:#30d158;background:rgba(48,209,88,0.1)}
+.toast.error{border-color:#ff375f;background:rgba(255,55,95,0.1)}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+footer{background:rgba(15,20,25,0.8);padding:2rem;text-align:center;border-top:1px solid rgba(255,255,255,0.1)}
+footer p{color:#9ca3af;font-size:14px}
+footer a{color:#4a8fd8;text-decoration:none}
+@media (max-width:768px){
+  nav{display:none}
+  .login-box{padding:2rem}
+  .container{padding:100px 1rem 60px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-content">
+    <a href="/" class="logo-link">
+      <img src="/logo.png" alt="TerrasyncAutomation">
+      <div class="logo-text">Terrasync<span>Automation</span></div>
+    </a>
+    <nav>
+      <a href="/">Accueil</a>
+      <a href="/outils.html">Outils</a>
+      <a href="/tarifs.html">Tarifs</a>
+      <a href="/a-propos.html">À propos</a>
+      <a href="/blog/">Blog</a>
+    </nav>
+  </div>
+</header>
+
+<div class="container">
+  <div class="login-box">
+    <h1>Connexion <span>Portail</span></h1>
+    <p>Connectez-vous pour accéder à vos outils IA</p>
+    
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Adresse Email</label>
+        <input type="email" id="email" name="email" placeholder="votre@email.com" required>
+      </div>
+      
+      <button type="submit" class="btn" id="loginBtn">
+        Se connecter →
+      </button>
+    </form>
+
+    <div class="info-box">
+      <p>Pas encore de compte ? <a href="/#demo">Demander un accès</a></p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>&copy; 2026 TerrasyncAutomation. Tous droits réservés.</p>
+  <p style="margin-top:12px">📧 <a href="mailto:projet.terrassements@gmail.com">projet.terrassements@gmail.com</a></p>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://xhhbutwopvwfwqspbsiu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoaGJ1dHdvcHZ3Zndxc3Bic2l1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTYzOTQsImV4cCI6MjA4OTQ5MjM5NH0.hmaUibc3KkiRWl2qJvX5Uy7K6IZLQt6568LsrIGW0pg';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const email = document.getElementById('email').value.trim();
+  const btn = document.getElementById('loginBtn');
+  
+  if (!email) {
+    showToast('Veuillez entrer votre email', 'error');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Connexion...';
+  
+  try {
+    // Chercher le portail de l'utilisateur
+    const { data, error } = await supabase
+      .from('portal_users')
+      .select('cid')
+      .eq('email', email)
+      .single();
+    
+    if (error || !data) {
+      showToast('Email non reconnu. Demandez un accès d\'abord.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Se connecter →';
+      return;
+    }
+    
+    // Rediriger vers le portail
+    showToast('Connexion réussie ! Redirection...', 'success');
+    setTimeout(() => {
+      window.location.href = `/app.html?portal=${data.cid}`;
+    }, 1000);
+    
+  } catch (err) {
+    console.error('Login error:', err);
+    showToast('Erreur de connexion. Réessayez.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Se connecter →';
+  }
+});
+</script>
+
+</body>
+</html>

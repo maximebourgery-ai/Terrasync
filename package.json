@@ -1,0 +1,7 @@
+{
+  "name": "terrasyncautomation",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Plateforme SaaS IA — Cloudflare Pages",
+  "dependencies": { "@supabase/supabase-js": "^2.39.0" }
+}

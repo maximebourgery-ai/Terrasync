@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terrassement.io</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box }
+        :root {
+            --ab: #f4f6fb; --as: #ffffff; --as2: #f0f2f8;
+            --ag: #6c63ff; --ag2: #5a52e8; --agl: #f0effe; --agm: #d4d0ff;
+            --ad: #1a1d2e; --am: #8b8fa8; --abdr: #e8eaf2; --ared: #e53e3e;
+            --cb: #1a1d2e; --cs: #2d3148;
+            --cfnt: 'Barlow Condensed', sans-serif;
+            --bfnt: 'DM Sans', sans-serif;
+            --mfnt: 'DM Mono', monospace;
+            --r: 10px; --r2: 14px; --r3: 18px;
+            --sh: 0 1px 4px rgba(108,99,255,.08), 0 1px 2px rgba(0,0,0,.04);
+            --sh2: 0 4px 16px rgba(108,99,255,.12), 0 2px 8px rgba(0,0,0,.05);
+            --sh3: 0 12px 36px rgba(108,99,255,.16), 0 4px 14px rgba(0,0,0,.07);
+        }
+        html, body { height: 100%; font-family: var(--bfnt); font-size: 14px; -webkit-font-smoothing: antialiased; overflow: hidden; color: var(--ad) }
+        .scr { position: fixed; inset: 0; display: none; flex-direction: column; overflow: hidden }
+        .scr.on { display: flex }
+        ::-webkit-scrollbar { width: 4px; height: 4px }
+        ::-webkit-scrollbar-track { background: transparent }
+        ::-webkit-scrollbar-thumb { background: rgba(108,99,255,.18); border-radius: 4px }
+        
+        /* ── ADMIN ── */
+        #admin { background: var(--ab) }
+        #admin::after {
+            content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background: radial-gradient(ellipse 60% 40% at 90% 0, rgba(108,99,255,.06) 0, transparent 100%),
+                        radial-gradient(ellipse 50% 50% at 0 100%, rgba(108,99,255,.04) 0, transparent 100%);
+        }
+        
+        /* TOP BAR */
+        .ah { height: 56px; background: #fff; border-bottom: 1px solid var(--abdr); display: flex; align-items: center; padding: 0 16px; gap: 0; flex-shrink: 0; position: relative; }
+        
+        /* Bouton de connexion */
+        .btn-login {
+            background: var(--ag); color: white; border: none; padding: 8px 16px; border-radius: var(--r); cursor: pointer;
+        }
+        
+        /* Conteneur de formulaire */
+        .form-container {
+            padding: 20px; max-width: 400px; margin: 0 auto;
+        }
+        
+        /* Correction : Définition de authLogin */
+        <script>
+            async function authLogin() {
+                // Exemple d'appel à Supabase
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: document.getElementById("email").value,
+                    password: document.getElementById("password").value,
+                });
+
+                if (error) {
+                    alert("Erreur : " + error.message);
+                } else {
+                    alert("Connexion réussie !");
+                    // Redirige ou mets à jour l'UI
+                }
+            }
+        </script>
+    </style>
+</head>
+<body>
+    <!-- Exemple de bouton de connexion -->
+    <div class="form-container">
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Mot de passe" required>
+        <button class="btn-login" onclick="authLogin()">Se connecter</button>
+    </div>
+    
+    <!-- Autres éléments de ton fichier -->
+    <script src="anthropic.js"></script>
+</body>
+</html>

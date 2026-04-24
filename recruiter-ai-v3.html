@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RECRUITER AI v3 — Multi-Fiches de Poste</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+/* ══ TOKENS ═══════════════════════════════════════════ */
+:root {
+  --bg:       #07070F;
+  --s1:       #0F0F1C;
+  --s2:       #161628;
+  --s3:       #1E1E35;
+  --border:   #242440;
+  --border2:  #2E2E50;
+  --gold:     #C9A84C;
+  --gold2:    #E8C96A;
+  --goldDim:  rgba(201,168,76,.10);
+  --goldGlow: rgba(201,168,76,.25);
+  --text:     #E4E4F6;
+  --textDim:  #8888B0;
+  --textMute: #404065;
+  --teal:     #2DD4BF;
+  --tealDim:  rgba(45,212,191,.12);
+  --red:      #F87171;
+  --redDim:   rgba(248,113,113,.12);
+  --orange:   #FB923C;
+  --orangeDim:rgba(251,146,60,.12);
+  --serif:    'Cormorant Garamond', serif;
+  --sans:     'DM Sans', sans-serif;
+  --r:        8px;
+  --r2:       14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* ══ BASE ═════════════════════════════════════════════ */
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* Dot grid */
+body::before{
+  content:'';
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(circle,rgba(201,168,76,.06) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+
+/* ══ SCREENS ══════════════════════════════════════════ */
+.screen{
+  position:relative;z-index:1;
+  min-height:100vh;
+  display:none;
+  flex-direction:column;
+}
+.screen.active{display:flex}
+
+/* ══ NAV BAR ══════════════════════════════════════════ */
+nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 40px;
+  border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,var(--s1) 0%,transparent 100%);
+  backdrop-filter:blur(12px);
+}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-hex{
+  width:38px;height:38px;
+  border:1.5px solid var(--gold);
+  display:grid;place-items:center;
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  background:var(--goldDim);
+  font-size:15px;color:var(--gold);
+}
+.brand-name{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--gold);letter-spacing:1px}
+.brand-sub{font-size:10px;color:var(--textMute);letter-spacing:3px;text-transform:uppercase;margin-top:1px}
+.nav-badge{
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  padding:4px 12px;border:1px solid var(--border2);
+  color:var(--textDim);background:var(--s2);
+  border-radius:2px;
+}
+
+/* ══ SETUP SCREEN ═════════════════════════════════════ */
+.setup-body{
+  flex:1;display:grid;
+  grid-template-columns:1fr 380px;
+  gap:24px;
+  padding:32px 40px;
+  max-width:1200px;margin:0 auto;width:100%;
+}
+/* ── Panel cards ── */
+.panel{
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.panel-head{
+  padding:18px 22px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.panel-icon{font-size:16px}
+.panel-title{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--text);letter-spacing:.3px}
+.panel-sub{font-size:11px;color:var(--textMute);margin-left:auto;letter-spacing:1px;text-transform:uppercase}
+.panel-body{flex:1;padding:22px}
+
+/* ── AO textarea ── */
+#aoInput{
+  width:100%;height:100%;min-height:320px;
+  background:transparent;border:none;outline:none;
+  color:var(--text);font-family:var(--sans);font-size:13.5px;line-height:1.75;
+  resize:none;
+}
+#aoInput::placeholder{color:var(--textMute)}
+.ao-footer{
+  padding:10px 22px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+}
+.char-count{font-size:11px;color:var(--textMute)}
+.char-count span{color:var(--textDim)}
+
+/* ── CV panel ── */
+.drop-zone{
+  border:1.5px dashed var(--border2);
+  border-radius:var(--r);
+  padding:28px 16px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative;
+}
+.drop-zone:hover,.drop-zone.over{
+  border-color:var(--gold);
+  background:var(--goldDim);
+}
+.drop-zone input{display:none}
+.drop-icon{font-size:28px;margin-bottom:8px;display:block;opacity:.6}
+.drop-label{font-size:13px;color:var(--textDim)}
+.drop-sub{font-size:11px;color:var(--textMute);margin-top:4px}
+.drop-zone.over .drop-icon{opacity:1;transform:scale(1.1)}
+
+/* ── CV counter ── */
+.cv-counter{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 0 8px;
+}
+.cv-counter-label{font-size:12px;color:var(--textDim);text-transform:uppercase;letter-spacing:1.5px}
+.cv-counter-num{
+  font-family:var(--serif);font-size:18px;font-weight:600;
+  color:var(--gold);
+}
+.cv-counter-num.maxed{color:var(--red)}
+.cv-bar{
+  height:3px;background:var(--s3);border-radius:2px;margin-bottom:16px;overflow:hidden;
+}
+.cv-bar-fill{
+  height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));
+  border-radius:2px;transition:width .3s ease;
+}
+/* ── CV list ── */
+.cv-list{display:flex;flex-direction:column;gap:6px}
+.cv-card{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;
+  background:var(--s2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  transition:border-color .2s;
+  animation:slideIn .25s ease;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.cv-card:hover{border-color:var(--border2)}
+.cv-card-icon{
+  width:30px;height:30px;min-width:30px;
+  background:var(--goldDim);
+  border:1px solid var(--gold);
+  border-radius:5px;
+  display:grid;place-items:center;
+  font-size:13px;
+}
+.cv-card-name{
+  flex:1;font-size:12px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cv-card-type{font-size:10px;color:var(--textMute);text-transform:uppercase;letter-spacing:1px}
+.cv-card-del{
+  width:24px;height:24px;min-width:24px;
+  background:none;border:none;cursor:pointer;
+  color:var(--textMute);border-radius:4px;
+  display:grid;place-items:center;font-size:14px;
+  transition:all .15s;
+}
+.cv-card-del:hover{background:var(--redDim);color:var(--red)}
+.cv-empty{
+  padding:20px;text-align:center;
+  font-size:11px;color:var(--textMute);letter-spacing:1px;text-transform:uppercase;
+}
+
+/* ── Setup footer ── */
+.setup-footer{
+  padding:20px 40px;
+  border-top:1px solid var(--border);
+  background:var(--s1);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;
+}
+.footer-info{font-size:12px;color:var(--textMute)}
+.footer-info strong{color:var(--textDim)}
+.btn-launch{
+  padding:14px 40px;
+  background:var(--gold);
+  color:var(--bg);
+  font-family:var(--serif);font-size:18px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  border:none;border-radius:var(--r);cursor:pointer;
+  transition:all .2s;
+  position:relative;overflow:hidden;
+}
+.btn-launch::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.15));
+  pointer-events:none;
+}
+.btn-launch:hover:not(:disabled){background:var(--gold2);box-shadow:0 0 24px var(--goldGlow);transform:translateY(-1px)}
+.btn-launch:disabled{background:var(--s3);color:var(--textMute);cursor:not-allowed;box-shadow:none;transform:none}
+
+/* ══ ANALYSIS SCREEN ══════════════════════════════════ */
+.analysis-body{
+  flex:1;display:grid;
+  grid-template-columns:320px 1fr;
+  gap:0;
+}
+/* ── Left stepper ── */
+.stepper-panel{
+  padding:32px 28px;
+  border-right:1px solid var(--border);
+  background:var(--s1);
+  display:flex;flex-direction:column;gap:0;
+}
+.stepper-title{
+  font-family:var(--serif);font-size:22px;font-weight:600;
+  color:var(--gold);margin-bottom:6px;
+}
+.stepper-sub{font-size:12px;color:var(--textMute);margin-bottom:28px;letter-spacing:.5px}
+.step-item{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:10px 0;
+  position:relative;
+}
+.step-item:not(:last-child)::after{
+  content:'';
+  position:absolute;left:15px;top:38px;
+  width:1px;height:calc(100% - 14px);
+  background:var(--border);
+}
+.step-item.done::after{background:var(--gold)}
+.step-dot{
+  width:30px;height:30px;min-width:30px;
+  border-radius:50%;
+  border:1.5px solid var(--border2);
+  background:var(--s2);
+  display:grid;place-items:center;
+  font-size:12px;
+  transition:all .4s ease;
+  position:relative;z-index:1;
+}
+.step-item.done .step-dot{
+  border-color:var(--gold);
+  background:var(--goldDim);
+}
+.step-item.active .step-dot{
+  border-color:var(--teal);
+  background:var(--tealDim);
+  box-shadow:0 0 0 4px rgba(45,212,191,.15);
+  animation:pulse-step 1.5s ease-in-out infinite;
+}
+@keyframes pulse-step{
+  0%,100%{box-shadow:0 0 0 4px rgba(45,212,191,.1)}
+  50%{box-shadow:0 0 0 8px rgba(45,212,191,.05)}
+}
+.step-dot-inner{font-size:11px;color:var(--textMute)}
+.step-item.done .step-dot-inner{color:var(--gold)}
+.step-item.active .step-dot-inner{color:var(--teal)}
+.step-info{padding-top:5px}
+.step-label{font-size:13px;color:var(--textDim);font-weight:400;transition:color .3s}
+.step-item.done .step-label{color:var(--text)}
+.step-item.active .step-label{color:var(--teal);font-weight:500}
+.step-hint{font-size:11px;color:var(--textMute);margin-top:2px}
+
+/* ── Right live feed ── */
+.live-panel{
+  padding:32px 36px;
+  display:flex;flex-direction:column;
+  gap:20px;
+}
+.live-header{display:flex;align-items:center;gap:16px;justify-content:space-between}
+.live-title{font-family:var(--serif);font-size:20px;font-weight:600;color:var(--text)}
+.live-status{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--teal);
+}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--teal);
+  animation:blink 1.2s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+
+.progress-track{
+  background:var(--s2);border-radius:6px;overflow:hidden;height:6px;
+}
+.progress-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--teal),var(--gold));
+  border-radius:6px;
+  transition:width .6s ease;
+}
+
+.live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat-box{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;
+}
+.stat-val{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--gold)}
+.stat-lbl{font-size:10px;color:var(--textMute);text-transform:uppercase;letter-spacing:1.5px;margin-top:2px}
+
+.feed-box{
+  flex:1;
+  background:var(--s2);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  padding:20px 22px;
+  overflow:hidden;
+  position:relative;
+}
+.feed-label{
+  font-size:10px;color:var(--textMute);letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:10px;
+}
+.feed-text{
+  font-family:var(--serif);font-size:13.5px;
+  color:var(--textDim);line-height:1.8;
+  max-height:220px;overflow:hidden;
+}
+.feed-text strong{color:var(--gold)}
+/* fade bottom */
+.feed-box::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;
+  height:60px;
+  background:linear-gradient(transparent,var(--s2));
+  pointer-events:none;
+}
+.btn-abort{
+  align-self:flex-end;
+  padding:9px 20px;
+  background:none;border:1px solid var(--border2);
+  color:var(--textDim);border-radius:var(--r);cursor:pointer;
+  font-size:12px;letter-spacing:1px;text-transform:uppercase;
+  transition:all .2s;
+}
+.btn-abort:hover{border-color:var(--red);color:var(--red)}
+
+/* ── Analysis footer ── */
+.analysis-footer{
+  padding:14px 36px;border-top:1px solid var(--border);
+  background:var(--s1);
+  display:flex;align-items:center;gap:10px;
+}
+.footer-warn{
+  font-size:12px;color:var(--textMute);
+  display:flex;align-items:center;gap:6px;
+}
+.footer-warn::before{content:'⚠';color:var(--orange)}
+
+/* Error state */
+.error-box{
+  background:var(--redDim);border:1px solid var(--red);
+  border-radius:var(--r2);padding:20px 24px;
+  display:none;
+}
+.error-box.visible{display:block}
+.error-title{font-family:var(--serif);font-size:16px;color:var(--red);margin-bottom:6px}
+.error-msg{font-size:13px;color:var(--textDim)}
+.btn-retry{
+  margin-top:12px;padding:8px 20px;
+  background:var(--red);color:white;
+  border:none;border-radius:var(--r);cursor:pointer;font-size:13px;
+  transition:opacity .2s;
+}
+.btn-retry:hover{opacity:.85}
+
+/* ══ RESULTS SCREEN ═══════════════════════════════════ */
+.results-header{
+  padding:18px 40px;
+  border-bottom:1px solid var(--border);
+  background:var(--s1);
+  display:flex;align-items:center;gap:16px;
+  position:sticky;top:0;z-index:20;
+  backdrop-filter:blur(12px);
+}
+.results-badge{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;
+  background:var(--tealDim);
+  border:1px solid var(--teal);
+  border-radius:2px;
+  font-size:11px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;
+}
+.results-title{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--text);flex:1}
+.btn-pdf{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 22px;
+  background:var(--gold);color:var(--bg);
+  font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:1px;
+  border:none;border-radius:var(--r);cursor:pointer;
+  transition:all .2s;
+}
+.btn-pdf:hover{background:var(--gold2);box-shadow:0 0 16px var(--goldGlow)}
+.btn-new{
+  padding:10px 20px;
+  background:none;border:1px solid var(--border2);
+  color:var(--textDim);border-radius:var(--r);cursor:pointer;
+  font-size:13px;transition:all .2s;
+}
+.btn-new:hover{border-color:var(--gold);color:var(--gold)}
+
+.results-body{
+  flex:1;padding:36px 40px;
+  max-width:960px;margin:0 auto;width:100%;
+}
+
+/* ── Markdown rendering ── */
+#resultsContent h1{
+  font-family:var(--serif);font-size:26px;font-weight:700;
+  color:var(--gold);margin:32px 0 8px;padding-bottom:10px;
+  border-bottom:1px solid var(--border2);
+}
+#resultsContent h2{
+  font-family:var(--serif);font-size:20px;font-weight:600;
+  color:var(--text);margin:24px 0 8px;
+}
+#resultsContent h3{
+  font-size:14px;font-weight:600;color:var(--textDim);
+  margin:16px 0 6px;text-transform:uppercase;letter-spacing:1.5px;
+}
+#resultsContent p{
+  font-size:13.5px;color:var(--textDim);line-height:1.75;margin:8px 0;
+}
+#resultsContent strong{color:var(--text);font-weight:600}
+#resultsContent em{color:var(--gold);font-style:normal}
+#resultsContent hr{
+  border:none;border-top:1px solid var(--border);margin:20px 0;
+}
+#resultsContent ul,#resultsContent ol{
+  padding-left:20px;margin:8px 0;
+}
+#resultsContent li{
+  font-size:13px;color:var(--textDim);margin:5px 0;line-height:1.6;
+}
+#resultsContent table{
+  width:100%;border-collapse:collapse;margin:16px 0;font-size:12.5px;
+}
+#resultsContent th{
+  background:var(--s3);border:1px solid var(--border2);
+  padding:9px 12px;color:var(--gold);font-weight:600;
+  text-align:left;text-transform:uppercase;letter-spacing:.8px;font-size:11px;
+}
+#resultsContent td{
+  border:1px solid var(--border);padding:8px 12px;color:var(--textDim);
+}
+#resultsContent tr:nth-child(even) td{background:var(--s2)}
+#resultsContent code{
+  font-family:monospace;font-size:12px;
+  background:var(--s3);color:var(--teal);
+  padding:1px 6px;border-radius:3px;
+}
+#resultsContent blockquote{
+  border-left:3px solid var(--gold);
+  background:var(--goldDim);
+  padding:12px 16px;margin:12px 0;
+  border-radius:0 var(--r) var(--r) 0;
+  font-size:13px;color:var(--textDim);
+}
+
+/* ══ BUTTONS (generic) ════════════════════════════════ */
+.btn-icon{
+  width:36px;height:36px;display:grid;place-items:center;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--r);cursor:pointer;font-size:14px;
+  transition:all .2s;color:var(--textDim);
+}
+.btn-icon:hover{border-color:var(--border2);color:var(--text)}
+
+/* ══ TOAST ════════════════════════════════════════════ */
+#toast{
+  position:fixed;bottom:28px;right:28px;z-index:100;
+  padding:12px 20px;border-radius:var(--r);
+  font-size:12px;letter-spacing:.5px;
+  animation:toastIn .3s ease;
+  pointer-events:none;
+  display:none;
+}
+#toast.show{display:block}
+#toast.success{background:var(--tealDim);border:1px solid var(--teal);color:var(--teal)}
+#toast.error{background:var(--redDim);border:1px solid var(--red);color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══ PRINT STYLES ═════════════════════════════════════ */
+@media print{
+  body{background:#fff;color:#111}
+  #screenSetup,#screenAnalysis,.results-header,nav{display:none!important}
+  #screenResults{display:block!important}
+  .results-body{padding:0;max-width:100%}
+  #resultsContent h1{color:#1a1a1a;border-color:#ccc;font-size:18pt}
+  #resultsContent h2{color:#1a1a1a;font-size:14pt}
+  #resultsContent h3{color:#444;font-size:10pt}
+  #resultsContent p,#resultsContent li{color:#333;font-size:9.5pt}
+  #resultsContent table{font-size:8.5pt;page-break-inside:avoid}
+  #resultsContent th{background:#f0f0f0!important;color:#111!important}
+  #resultsContent td{background:#fff!important;color:#333!important;border-color:#ccc!important}
+  #resultsContent tr:nth-child(even) td{background:#f8f8f8!important}
+  #resultsContent hr{border-color:#ccc}
+  #resultsContent blockquote{background:#f5f5f5!important;border-color:#999!important;color:#333!important}
+  #resultsContent code{background:#eee!important;color:#333!important}
+  h1,h2,h3{page-break-after:avoid}
+  @page{margin:18mm;size:A4}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<!-- ══ SCREEN 1 : SETUP ══════════════════════════════════ -->
+<div id="screenSetup" class="screen active">
+  <nav>
+    <div class="brand">
+      <div class="brand-hex">⬡</div>
+      <div>
+        <div class="brand-name">RECRUITER AI</div>
+        <div class="brand-sub">Machine de Guerre · v2.1</div>
+      </div>
+    </div>
+    <div class="nav-badge">Talent Intelligence System</div>
+  </nav>
+
+  <div class="setup-body">
+    <!-- ── AO PANEL ── -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-icon">📋</span>
+        <span class="panel-title">Fiches de Poste</span>
+        <span class="panel-sub" id="aoWordCount">0 mots</span>
+      </div>
+      <div class="panel-body" style="padding:0;flex:1;display:flex;flex-direction:column;gap:0">
+        <!-- Fiche de poste #1 -->
+        <div style="flex:1;display:flex;flex-direction:column;min-height:200px;border-bottom:1px solid var(--border)">
+          <div style="padding:8px 12px;background:var(--s2);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:var(--textDim);text-transform:uppercase;letter-spacing:1px">📄 Fiche #1</span>
+            <button class="btn-icon" style="font-size:10px;padding:4px 8px" onclick="toggleFiche2()">+ Ajouter fiche #2</button>
+          </div>
+          <textarea id="aoInput" style="flex:1;border:none;min-height:180px" placeholder="Collez ici la fiche de poste #1 — contexte client, missions, compétences requises, séniorité, durée, outils…"></textarea>
+        </div>
+        
+        <!-- Fiche de poste #2 (masquée par défaut) -->
+        <div id="fiche2Container" style="flex:1;display:none;flex-direction:column;min-height:200px">
+          <div style="padding:8px 12px;background:var(--s2);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:var(--textDim);text-transform:uppercase;letter-spacing:1px">📄 Fiche #2 (optionnelle)</span>
+            <button class="btn-icon" style="font-size:10px;padding:4px 8px;color:var(--red)" onclick="removeFiche2()">✕ Retirer</button>
+          </div>
+          <textarea id="aoInput2" style="flex:1;border:none;min-height:180px" placeholder="Collez ici la fiche de poste #2 (optionnelle) — autre opportunité du même client ou client différent…"></textarea>
+        </div>
+      </div>
+      <div class="ao-footer">
+        <span class="char-count">Fiches : <span id="fichesCount">1</span> · Mots : <span id="aoChars">0</span></span>
+        <button class="btn-icon" title="Effacer tout" onclick="clearAO()">🗑</button>
+      </div>
+    </div>
+
+    <!-- ── CV PANEL ── -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-icon">👤</span>
+        <span class="panel-title">Candidats</span>
+        <span class="panel-sub" id="cvLimitBadge">0 / 10</span>
+      </div>
+      <div class="panel-body" style="display:flex;flex-direction:column;gap:0">
+        <!-- Drop zone -->
+        <div class="drop-zone" id="dropZone"
+             onclick="document.getElementById('cvFileInput').click()"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" id="cvFileInput" accept=".pdf,.txt,.doc,.docx" multiple style="display:none">
+          <span class="drop-icon">⊕</span>
+          <div class="drop-label">Glissez les CV ici</div>
+          <div class="drop-sub">PDF, TXT, DOC · Cliquez ou glissez · Max 10 CV</div>
+        </div>
+
+        <!-- Counter bar -->
+        <div class="cv-counter">
+          <span class="cv-counter-label">Candidats chargés</span>
+          <span class="cv-counter-num" id="cvCountNum">0 / 10</span>
+        </div>
+        <div class="cv-bar">
+          <div class="cv-bar-fill" id="cvBarFill" style="width:0%"></div>
+        </div>
+
+        <!-- CV list -->
+        <div class="cv-list" id="cvList">
+          <div class="cv-empty" id="cvEmpty">Aucun CV chargé</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="setup-footer">
+    <div class="footer-info">
+      Modèle <strong>Claude Sonnet 4.6</strong> · 
+      Analyse complète : 9 étapes + bullshit detection + guides entretien
+    </div>
+    <button class="btn-launch" id="launchBtn" disabled onclick="startAnalysis()">
+      ⚡ Lancer l'Analyse
+    </button>
+  </div>
+</div>
+
+<!-- ══ SCREEN 2 : ANALYSIS ═════════════════════════════════ -->
+<div id="screenAnalysis" class="screen">
+  <nav>
+    <div class="brand">
+      <div class="brand-hex" style="animation:pulse-step 1.5s ease-in-out infinite">⬡</div>
+      <div>
+        <div class="brand-name">RECRUITER AI</div>
+        <div class="brand-sub">Analyse en cours…</div>
+      </div>
+    </div>
+    <button class="btn-abort" onclick="abortAnalysis()">■ Interrompre</button>
+  </nav>
+
+  <div class="analysis-body">
+    <!-- ── STEPPER ── -->
+    <div class="stepper-panel">
+      <div class="stepper-title">Progression</div>
+      <div class="stepper-sub" id="stepperSub">Initialisation…</div>
+      <div id="stepperList"></div>
+    </div>
+
+    <!-- ── LIVE FEED ── -->
+    <div class="live-panel">
+      <div class="live-header">
+        <div class="live-title">Analyse en cours</div>
+        <div class="live-status">
+          <div class="live-dot"></div>
+          <span id="liveStatusText">Connexion à l'IA…</span>
+        </div>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+
+      <div class="live-stats">
+        <div class="stat-box">
+          <div class="stat-val" id="statCandidats">—</div>
+          <div class="stat-lbl">Candidats</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statStep">0/9</div>
+          <div class="stat-lbl">Étapes complétées</div>
+        </div>
+      </div>
+
+      <div class="feed-box">
+        <div class="feed-label">Flux en direct — dernières lignes générées</div>
+        <div class="feed-text" id="feedText">En attente de réponse de l'IA…</div>
+      </div>
+
+      <div class="error-box" id="errorBox">
+        <div class="error-title">Erreur de traitement</div>
+        <div class="error-msg" id="errorMsg"></div>
+        <button class="btn-retry" onclick="retryAnalysis()">↺ Réessayer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="analysis-footer">
+    <span class="footer-warn">Ne fermez pas cette fenêtre pendant l'analyse</span>
+  </div>
+</div>
+
+<!-- ══ SCREEN 3 : RESULTS ══════════════════════════════════ -->
+<div id="screenResults" class="screen">
+  <div class="results-header">
+    <div class="results-badge">✓ Analyse Terminée</div>
+    <div class="results-title" id="resultsTitle">Rapport Machine de Guerre</div>
+    <button class="btn-new" onclick="resetApp()">↺ Nouvelle analyse</button>
+    <button class="btn-pdf" onclick="exportPDF()">⬇ Exporter PDF</button>
+  </div>
+  <div class="results-body">
+    <div id="resultsContent"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
+const API_KEY = '';
+const MODEL   = 'claude-sonnet-4-20250514';
+const MAX_CV  = 10;
+const MAX_TOK = 16000;
+
+const SYSTEM_PROMPT = `Tu es un Talent Manager Senior dans un cabinet de conseil international spécialisé en IT, Data, Finance et Transformation. Tu analyses des CV et mesures leur compatibilité avec une ou plusieurs fiches de poste client.
+
+Le client peut fournir 1 ou 2 fiches de poste. Tu dois analyser CHAQUE CV par rapport à CHAQUE fiche et proposer les meilleurs positionnements stratégiques.
+
+GRILLE DE SCORING (100 pts par fiche) :
+- Adéquation au poste : 20
+- Compétences techniques : 25
+- Expérience missions similaires : 20
+- Expérience secteur client : 10
+- Séniorité : 10
+- Méthodologies : 5
+- Langues : 5
+- Stabilité du parcours : 5
+
+ANALYSE INTELLIGENTE POUR CHAQUE CV :
+1. Correspondance métier réelle
+2. Expérience concrète vs mentions superficielles
+3. Cohérence du parcours (durées, logique, évolution)
+4. Expertise réelle vs technologies juste mentionnées
+5. Détection bullshit CV : buzzwords, stack irréaliste, missions très courtes, absence de réalisations concrètes
+
+RÈGLE D'OR : Un profil bon mais hors besoin = mauvais score. Un profil pile dans le besoin = score élevé.
+
+STRUCTURE DE SORTIE OBLIGATOIRE (utilise exactement ces headers) :
+
+## ÉTAPE 3 — ANALYSE DES BESOINS CLIENT
+(pour chaque fiche : tableau 10 critères + alerte point critique)
+
+## ÉTAPE 4 — GRILLE DE SCORING
+(tableau pondérations)
+
+## ÉTAPE 5 — ANALYSE INTELLIGENTE DES CV
+(pour chaque candidat : analyse des 5 points + tableau bullshit detection | Compétence | Preuve | Verdict |)
+
+## ÉTAPE 6 — MATRICE DE MATCHING
+**Si 2 fiches :** Tableau | Candidat | Score Fiche #1 /100 | Score Fiche #2 /100 | Meilleur match |
+**Si 1 fiche :** Tableau | Rang | Candidat | Score /100 | Points forts | Points faibles | Risques client |
+
+## ÉTAPE 7 — ANALYSE RECRUTEUR
+(pour chaque candidat : score(s), points forts, points faibles, risque client, probabilité entretien)
+
+## ÉTAPE 8 — POSITIONNEMENTS STRATÉGIQUES
+**Si 2 fiches :** Pour chaque fiche, propose les 3 meilleurs candidats avec justification
+**Si 1 fiche :** Top candidat / Bon backup / Profil risqué / Profil hors sujet + synthèse
+
+## ÉTAPE 9 — GUIDES D'ENTRETIEN
+(pour les 4 meilleurs candidats globalement : 15 questions min., vérification compétences, missions, détection exagérations, comportemental, RH obligatoire : dispo/TJM/contrat)
+
+## BONUS — ANALYSE CABINET
+(probabilité placement % + tableau notes /10 : potentiel commercial, risque client, facilité placement + conclusion stratégique par fiche si applicable)
+
+Sois direct, critique, sans complaisance. Utilise des tableaux markdown pour toutes les données structurées.`;
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+const APP = {
+  cvs: [],        // [{id,name,isPdf,text,b64}]
+  result: '',
+  abort: null,
+  stepsDone: new Set(),
+  activeStep: -1,
+  tokenCount: 0,
+  lastError: null,
+  _lastContent: null, // saved for retry
+};
+
+const STEPS = [
+  {id:0, label:"Lecture de l'AO",        hint:"Extraction des critères clés", trigger:/ÉTAPE 3|ANALYSE DU BESOIN/i},
+  {id:1, label:"Grille de scoring",       hint:"Construction de la pondération", trigger:/ÉTAPE 4|GRILLE DE SCORING/i},
+  {id:2, label:"Analyse des CV",          hint:"Évaluation de chaque profil", trigger:/ÉTAPE 5|ANALYSE INTELLIGENTE/i},
+  {id:3, label:"Détection bullshit",      hint:"Cross-check des compétences", trigger:/bullshit|DÉTECTION bullshit/i},
+  {id:4, label:"Classement candidats",    hint:"Tri par score", trigger:/ÉTAPE 6|CLASSEMENT/i},
+  {id:5, label:"Analyse recruteur",       hint:"Probabilité d'entretien", trigger:/ÉTAPE 7|ANALYSE RECRUTEUR/i},
+  {id:6, label:"Recommandation cabinet",  hint:"Go / No-go client", trigger:/ÉTAPE 8|RECOMMANDATION/i},
+  {id:7, label:"Guides d'entretien",      hint:"Questions personnalisées", trigger:/ÉTAPE 9|GUIDE/i},
+  {id:8, label:"Synthèse finale",         hint:"Analyse commerciale cabinet", trigger:/BONUS|ANALYSE CABINET|PLACEMENT/i},
+];
+
+// ══════════════════════════════════════════════════════
+// SETUP — AO
+// ══════════════════════════════════════════════════════
+const aoInput = document.getElementById('aoInput');
+const aoInput2 = document.getElementById('aoInput2');
+
+function updateAOCounts() {
+  const v1 = aoInput.value;
+  const v2 = aoInput2.value;
+  const totalWords = (v1.trim() ? v1.trim().split(/\s+/).length : 0) + 
+                     (v2.trim() ? v2.trim().split(/\s+/).length : 0);
+  const fichesActive = v2.trim() ? 2 : 1;
+  
+  document.getElementById('aoChars').textContent = totalWords;
+  document.getElementById('aoWordCount').textContent = totalWords + ' mot' + (totalWords>1?'s':'');
+  document.getElementById('fichesCount').textContent = fichesActive;
+  checkLaunch();
+}
+
+aoInput.addEventListener('input', updateAOCounts);
+aoInput2.addEventListener('input', updateAOCounts);
+
+function toggleFiche2() {
+  const container = document.getElementById('fiche2Container');
+  if (container.style.display === 'none') {
+    container.style.display = 'flex';
+    updateAOCounts();
+  }
+}
+
+function removeFiche2() {
+  const container = document.getElementById('fiche2Container');
+  aoInput2.value = '';
+  container.style.display = 'none';
+  updateAOCounts();
+}
+
+function clearAO() {
+  aoInput.value = '';
+  aoInput2.value = '';
+  removeFiche2();
+  updateAOCounts();
+}
+
+// ══════════════════════════════════════════════════════
+// SETUP — CVs
+// ══════════════════════════════════════════════════════
+document.getElementById('cvFileInput').addEventListener('change', e => {
+  Array.from(e.target.files).forEach(addCV);
+  e.target.value = '';
+});
+
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('over');
+}
+function onDragLeave(e) {
+  document.getElementById('dropZone').classList.remove('over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('over');
+  Array.from(e.dataTransfer.files).forEach(addCV);
+}
+
+async function addCV(file) {
+  if (APP.cvs.length >= MAX_CV) {
+    showToast('Maximum 10 CV atteint', 'error');
+    return;
+  }
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const id = Date.now() + Math.random();
+  let text = '', b64 = '';
+  try {
+    if (isPdf) {
+      b64 = await new Promise((res,rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    } else {
+      text = await new Promise((res,rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsText(file, 'UTF-8');
+      });
+    }
+    APP.cvs.push({id, name: file.name, isPdf, text, b64});
+    renderCVList();
+    checkLaunch();
+    showToast(`${file.name} ajouté`, 'success');
+  } catch(err) {
+    showToast(`Erreur lecture : ${file.name}`, 'error');
+  }
+}
+
+function removeCV(id) {
+  APP.cvs = APP.cvs.filter(c => c.id !== id);
+  renderCVList();
+  checkLaunch();
+}
+
+function renderCVList() {
+  const list = document.getElementById('cvList');
+  const count = APP.cvs.length;
+  document.getElementById('cvCountNum').textContent = `${count} / ${MAX_CV}`;
+  document.getElementById('cvLimitBadge').textContent = `${count} / ${MAX_CV}`;
+  const numEl = document.getElementById('cvCountNum');
+  numEl.className = 'cv-counter-num' + (count >= MAX_CV ? ' maxed' : '');
+  document.getElementById('cvBarFill').style.width = (count / MAX_CV * 100) + '%';
+
+  if (count === 0) {
+    list.innerHTML = '<div class="cv-empty" id="cvEmpty">Aucun CV chargé</div>';
+    return;
+  }
+  list.innerHTML = APP.cvs.map((cv,i) => `
+    <div class="cv-card" id="cvc-${cv.id}">
+      <div class="cv-card-icon">${cv.isPdf ? '📄' : '📝'}</div>
+      <div style="flex:1;min-width:0">
+        <div class="cv-card-name">${cv.name.replace(/\.[^.]+$/,'')}</div>
+        <div class="cv-card-type">${cv.isPdf ? 'PDF' : 'Texte'} · Candidat ${String(i+1).padStart(2,'0')}</div>
+      </div>
+      <button class="cv-card-del" onclick="removeCV(${cv.id})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+function checkLaunch() {
+  const ok = aoInput.value.trim().length > 50 && APP.cvs.length > 0;
+  document.getElementById('launchBtn').disabled = !ok;
+}
+
+// ══════════════════════════════════════════════════════
+// ANALYSIS
+// ══════════════════════════════════════════════════════
+async function buildContent() {
+  const parts = [];
+  
+  // Construire le texte des fiches de poste
+  const fiche1 = aoInput.value.trim();
+  const fiche2 = aoInput2.value.trim();
+  
+  if (fiche2) {
+    // Cas multi-fiches
+    parts.push({
+      type:'text',
+      text:`Le client propose 2 opportunités différentes. Analyse CHAQUE CV par rapport aux DEUX fiches et propose les meilleurs positionnements stratégiques.
+
+## FICHE DE POSTE #1
+---
+${fiche1}
+---
+
+## FICHE DE POSTE #2
+---
+${fiche2}
+---
+
+Voici les ${APP.cvs.length} CV(s) à analyser :\n`
+    });
+  } else {
+    // Cas mono-fiche (classique)
+    parts.push({
+      type:'text',
+      text:`Voici la fiche de poste client :\n\n---\n${fiche1}\n---\n\nVoici les ${APP.cvs.length} CV(s) à analyser :\n`
+    });
+  }
+  
+  for (const cv of APP.cvs) {
+    parts.push({type:'text', text:`\n\n═══ CV : ${cv.name} ═══\n`});
+    if (cv.isPdf) {
+      parts.push({type:'document', source:{type:'base64', media_type:'application/pdf', data:cv.b64}});
+    } else {
+      parts.push({type:'text', text: cv.text});
+    }
+  }
+  parts.push({
+    type:'text',
+    text:`\n\nLance maintenant l'analyse complète selon la structure Machine de Guerre. Produis le rapport intégral immédiatement, sans introduction.`
+  });
+  return parts;
+}
+
+async function startAnalysis() {
+  APP.stepsDone.clear();
+  APP.activeStep = -1;
+  APP.result = '';
+  APP.tokenCount = 0;
+  APP.lastError = null;
+
+  buildStepperUI();
+  setScreen('analysis');
+  document.getElementById('statCandidats').textContent = APP.cvs.length;
+  document.getElementById('liveStatusText').textContent = 'Connexion établie…';
+
+  const content = await buildContent();
+  APP._lastContent = content;
+  await streamAnalysis(content);
+}
+
+async function retryAnalysis() {
+  document.getElementById('errorBox').classList.remove('visible');
+  APP.stepsDone.clear();
+  APP.activeStep = -1;
+  APP.result = '';
+  APP.tokenCount = 0;
+  buildStepperUI();
+  await streamAnalysis(APP._lastContent);
+}
+
+async function streamAnalysis(content) {
+  APP.abort = new AbortController();
+  document.getElementById('liveStatusText').textContent = 'Analyse en cours…';
+
+  let accumulated = '';
+  let chunkCount = 0;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: APP.abort.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOK,
+        system: SYSTEM_PROMPT,
+        stream: true,
+        messages: [{role:'user', content}],
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({error:{message:'Erreur réseau'}}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      const chunk = dec.decode(value);
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            accumulated += parsed.delta.text;
+            chunkCount += parsed.delta.text.length;
+            APP.tokenCount = Math.round(accumulated.length / 4);
+            updateProgress(accumulated);
+            updateFeed(accumulated);
+          }
+        } catch {}
+      }
+    }
+
+    APP.result = accumulated;
+    onAnalysisDone();
+
+  } catch(err) {
+    if (err.name === 'AbortError') {
+      document.getElementById('liveStatusText').textContent = 'Analyse interrompue';
+      return;
+    }
+    APP.lastError = err.message;
+    document.getElementById('errorMsg').textContent = err.message;
+    document.getElementById('errorBox').classList.add('visible');
+    document.getElementById('liveStatusText').textContent = 'Erreur — voir ci-dessous';
+    showToast('Erreur API : ' + err.message, 'error');
+  }
+}
+
+function abortAnalysis() {
+  if (APP.abort) APP.abort.abort();
+  setTimeout(() => setScreen('setup'), 400);
+}
+
+// ══════════════════════════════════════════════════════
+// PROGRESS TRACKING
+// ══════════════════════════════════════════════════════
+function buildStepperUI() {
+  const el = document.getElementById('stepperList');
+  el.innerHTML = STEPS.map(s => `
+    <div class="step-item" id="step-${s.id}">
+      <div class="step-dot"><span class="step-dot-inner" id="step-dot-${s.id}">○</span></div>
+      <div class="step-info">
+        <div class="step-label">${s.label}</div>
+        <div class="step-hint">${s.hint}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateProgress(text) {
+  let highestDone = APP.activeStep;
+
+  STEPS.forEach(s => {
+    if (!APP.stepsDone.has(s.id) && s.trigger.test(text)) {
+      APP.stepsDone.add(s.id);
+      const el = document.getElementById(`step-${s.id}`);
+      const dot = document.getElementById(`step-dot-${s.id}`);
+      if (el) {
+        el.classList.remove('active');
+        el.classList.add('done');
+        dot.textContent = '✓';
+      }
+      if (s.id > highestDone) highestDone = s.id;
+    }
+  });
+
+  // Set next step as active
+  const nextActive = highestDone + 1;
+  if (nextActive < STEPS.length && !APP.stepsDone.has(nextActive)) {
+    if (APP.activeStep !== nextActive) {
+      if (APP.activeStep >= 0) {
+        const old = document.getElementById(`step-${APP.activeStep}`);
+        if (old && !APP.stepsDone.has(APP.activeStep)) old.classList.remove('active');
+      }
+      APP.activeStep = nextActive;
+      const el = document.getElementById(`step-${nextActive}`);
+      const dot = document.getElementById(`step-dot-${nextActive}`);
+      if (el) { el.classList.add('active'); dot.textContent = '◉'; }
+    }
+  }
+
+  // Progress bar
+  const pct = Math.min(98, (APP.stepsDone.size / STEPS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('statStep').textContent = `${APP.stepsDone.size}/9`;
+
+  // Stepper subtitle
+  if (APP.activeStep >= 0 && APP.activeStep < STEPS.length) {
+    document.getElementById('stepperSub').textContent = STEPS[APP.activeStep].label + '…';
+  }
+}
+
+function updateFeed(text) {
+  const lines = text.split('\n').filter(l => l.trim().length > 2);
+  const last = lines.slice(-8).join('\n');
+  const formatted = renderMarkdownMini(last);
+  document.getElementById('feedText').innerHTML = formatted;
+}
+
+// ══════════════════════════════════════════════════════
+// AO NAME EXTRACTION
+// ══════════════════════════════════════════════════════
+function extractAOName(text) {
+  if (!text) return 'Mission';
+
+  // Try common patterns: "Poste :", "Intitulé :", "Mission :", first line with a job title, etc.
+  const patterns = [
+    /(?:intitul[eé](?:\s*du\s*poste)?|poste|mission|titre|offre|profil\s*recherch[eé])\s*[:\-–]\s*(.{4,80})/i,
+    /^(.{4,80})$/m,  // fallback: first non-empty line
+  ];
+
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m && m[1]) {
+      return m[1]
+        .trim()
+        .replace(/["""'']/g, '')
+        .replace(/\s+/g,' ')
+        .substring(0, 60)
+        + (m[1].trim().length > 60 ? '…' : '');
+    }
+  }
+  return 'Mission';
+}
+function onAnalysisDone() {
+  // Mark all remaining steps done
+  STEPS.forEach(s => {
+    const el = document.getElementById(`step-${s.id}`);
+    const dot = document.getElementById(`step-dot-${s.id}`);
+    if (el) { el.classList.remove('active'); el.classList.add('done'); }
+    if (dot) dot.textContent = '✓';
+  });
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('liveStatusText').textContent = 'Analyse terminée ✓';
+
+  setTimeout(() => {
+    document.getElementById('resultsContent').innerHTML = renderMarkdown(APP.result);
+    const aoText1 = aoInput.value.trim();
+    const aoText2 = aoInput2.value.trim();
+    
+    let title;
+    if (aoText2) {
+      const name1 = extractAOName(aoText1);
+      const name2 = extractAOName(aoText2);
+      title = `Analyse Multi-Fiches : "${name1}" & "${name2}"`;
+    } else {
+      const aoName = extractAOName(aoText1);
+      title = `Analyse de profil Appel d'offre "${aoName}"`;
+    }
+    
+    document.getElementById('resultsTitle').textContent = title;
+    setScreen('results');
+  }, 800);
+}
+
+async function exportPDF() {
+  const btn = document.querySelector('.btn-pdf');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '⏳ Génération…';
+  btn.disabled = true;
+
+  try {
+    const aoText = aoInput.value.trim();
+    const aoName = extractAOName(aoText);
+    const date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-');
+    const filename = `Analyse_${aoName.substring(0,40).replace(/[^a-zA-Z0-9À-ÿ ]/g,'_')}_${date}.pdf`;
+
+    // ── 1. Build a clean offscreen render node ──────────────────
+    const printNode = document.createElement('div');
+    printNode.style.cssText = [
+      'position:fixed', 'left:-9999px', 'top:0',
+      'width:794px',          // A4 at 96dpi = 794px wide
+      'background:#ffffff',
+      'color:#1a1a1a',
+      'font-family:Arial,sans-serif',
+      'font-size:11px',
+      'line-height:1.65',
+      'padding:48px 56px',
+      'box-sizing:border-box',
+    ].join(';');
+
+    // Cover header
+    printNode.innerHTML = `
+      <div style="border-bottom:3px solid #C9A84C;padding-bottom:14px;margin-bottom:28px">
+        <div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:6px">
+          RECRUITER AI — MACHINE DE GUERRE · Talent Intelligence System
+        </div>
+        <div style="font-size:18px;font-weight:700;color:#1a1a1a;margin-bottom:4px">
+          Analyse de profil Appel d'offre
+        </div>
+        <div style="font-size:15px;font-weight:600;color:#C9A84C">
+          "${aoName}"
+        </div>
+        <div style="font-size:9px;color:#999;margin-top:8px">
+          ${APP.cvs.length} candidat${APP.cvs.length>1?'s':''} analysés · ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})} · CONFIDENTIEL CABINET
+        </div>
+      </div>
+      <div id="__pdfContent__"></div>
+    `;
+    document.body.appendChild(printNode);
+
+    // ── 2. Inject styled markdown content ───────────────────────
+    const contentClone = document.getElementById('resultsContent').cloneNode(true);
+    applyPrintStyles(contentClone);
+    printNode.querySelector('#__pdfContent__').appendChild(contentClone);
+
+    // Small delay for fonts
+    await new Promise(r => setTimeout(r, 300));
+
+    // ── 3. Render entire node to ONE canvas ─────────────────────
+    const canvas = await html2canvas(printNode, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: printNode.offsetWidth,
+      height: printNode.scrollHeight,
+      windowWidth: printNode.offsetWidth,
+    });
+
+    document.body.removeChild(printNode);
+
+    // ── 4. Slice canvas into A4 pages ───────────────────────────
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+    const A4_W_MM = 210;
+    const A4_H_MM = 297;
+    const MARGIN_MM = 12;
+
+    const pdfContentW = A4_W_MM - MARGIN_MM * 2;   // mm available per page
+    const pdfContentH = A4_H_MM - MARGIN_MM * 2;
+
+    // Canvas px → mm conversion
+    const canvasPxPerMm = canvas.width / A4_W_MM;   // canvas is 2× scale, full A4 width
+
+    const pageHeightPx = Math.floor(pdfContentH * canvasPxPerMm);
+    const totalPages   = Math.ceil(canvas.height / pageHeightPx);
+
+    for (let i = 0; i < totalPages; i++) {
+      if (i > 0) pdf.addPage();
+
+      const srcY      = i * pageHeightPx;
+      const srcH      = Math.min(pageHeightPx, canvas.height - srcY);
+
+      // Slice this page out of the main canvas
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width  = canvas.width;
+      pageCanvas.height = srcH;
+      const ctx = pageCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+      const imgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+
+      // Scale image to fit A4 content area
+      const imgH = (srcH / canvasPxPerMm);   // actual mm height of this slice
+
+      pdf.addImage(
+        imgData, 'JPEG',
+        MARGIN_MM, MARGIN_MM,
+        pdfContentW, imgH,
+        undefined, 'FAST'
+      );
+
+      // Footer: page number
+      pdf.setFontSize(7);
+      pdf.setTextColor(160, 160, 160);
+      pdf.text(
+        `Page ${i+1} / ${totalPages}  ·  CONFIDENTIEL CABINET`,
+        A4_W_MM / 2, A4_H_MM - 5,
+        { align: 'center' }
+      );
+    }
+
+    // ── 5. TÉLÉCHARGEMENT FORCÉ (au lieu de pdf.save) ──────────
+    // pdf.save() ne marche pas toujours, on force le téléchargement manuellement
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    
+    // CRITIQUE : ajouter au DOM pour que Chrome accepte le click
+    document.body.appendChild(a);
+    
+    // Petit délai pour laisser le navigateur traiter
+    await new Promise(r => setTimeout(r, 100));
+    
+    // Déclencher le téléchargement
+    a.click();
+    
+    // Nettoyage après un délai
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+
+    btn.innerHTML = orig;
+    btn.disabled = false;
+    showToast(`PDF téléchargé — ${totalPages} pages`, 'success');
+
+  } catch(err) {
+    console.error(err);
+    btn.innerHTML = orig;
+    btn.disabled = false;
+    showToast('Erreur export : ' + err.message, 'error');
+  }
+}
+
+function applyPrintStyles(node) {
+  // Reset node
+  node.style.cssText = 'font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;line-height:1.65;max-width:100%';
+
+  const rules = [
+    ['h1',  'font-size:15px;font-weight:700;color:#1a1a1a;border-bottom:2px solid #C9A84C;padding-bottom:5px;margin:22px 0 8px'],
+    ['h2',  'font-size:12px;font-weight:700;color:#1a1a1a;margin:16px 0 6px;padding-left:8px;border-left:3px solid #C9A84C'],
+    ['h3',  'font-size:10px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px;margin:12px 0 4px'],
+    ['p',   'font-size:10.5px;color:#333;margin:5px 0;line-height:1.65'],
+    ['ul',  'padding-left:18px;margin:5px 0'],
+    ['ol',  'padding-left:18px;margin:5px 0'],
+    ['li',  'font-size:10px;color:#333;margin:3px 0;line-height:1.55'],
+    ['table','width:100%;border-collapse:collapse;margin:10px 0;font-size:9px'],
+    ['th',  'background:#1F3864;color:#fff;padding:6px 8px;text-align:left;font-size:8px;font-weight:700;border:1px solid #bbb'],
+    ['td',  'border:1px solid #ddd;padding:5px 8px;color:#333;font-size:9px;vertical-align:top'],
+    ['blockquote','border-left:3px solid #C9A84C;background:#faf6ee;padding:8px 12px;margin:8px 0;font-size:10px;color:#444'],
+    ['code','background:#f0f0f0;color:#333;padding:1px 4px;font-size:9px;font-family:monospace'],
+    ['hr',  'border:none;border-top:1px solid #ddd;margin:12px 0'],
+    ['strong','color:#1a1a1a;font-weight:700'],
+    ['em',  'color:#C9A84C;font-style:normal'],
+  ];
+
+  rules.forEach(([sel, css]) => {
+    node.querySelectorAll(sel).forEach(el => { el.style.cssText = css; });
+  });
+
+  // Zebra stripe tables
+  node.querySelectorAll('tr:nth-child(even) td').forEach(el => {
+    el.style.background = '#f5f7fa';
+  });
+
+  // Wrap tables in a div to avoid overflow
+  node.querySelectorAll('table').forEach(tbl => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'overflow:visible;width:100%;margin:8px 0';
+    tbl.parentNode.insertBefore(wrap, tbl);
+    wrap.appendChild(tbl);
+  });
+}
+
+function resetApp() {
+  APP.cvs = [];
+  APP.result = '';
+  APP.abort = null;
+  APP.stepsDone.clear();
+  APP.activeStep = -1;
+  APP.tokenCount = 0;
+  APP.lastError = null;
+  APP._lastContent = null;
+
+  aoInput.value = '';
+  aoInput.dispatchEvent(new Event('input'));
+  renderCVList();
+  document.getElementById('cvFileInput').value = '';
+
+  setScreen('setup');
+  showToast('Prêt pour une nouvelle analyse', 'success');
+}
+
+// ══════════════════════════════════════════════════════
+// MARKDOWN RENDERER
+// ══════════════════════════════════════════════════════
+function renderMarkdown(raw) {
+  let t = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>');
+
+  // Tables
+  t = t.replace(/(\|[^\n]+\|\n\|[-| :]+\|\n(?:\|[^\n]+\|\n?)+)/g, m => {
+    const rows = m.trim().split('\n');
+    if (rows.length < 2) return m;
+    const ths = rows[0].split('|').filter(c=>c.trim()).map(c=>`<th>${c.trim()}</th>`).join('');
+    const body = rows.slice(2).map(r => {
+      const cells = r.split('|').filter(c=>c.trim()).map(c=>`<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto"><table><thead><tr>${ths}</tr></thead><tbody>${body}</tbody></table></div>`;
+  });
+
+  // Headings
+  t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+  t = t.replace(/^## (.+)$/gm,'<h2>$1</h2>');
+  t = t.replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  // Bold / italic
+  t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  t = t.replace(/\*(.+?)\*/g,'<em>$1</em>');
+  // Inline code
+  t = t.replace(/`([^`]+)`/g,'<code>$1</code>');
+  // HR
+  t = t.replace(/^---+$/gm,'<hr>');
+  // Blockquote
+  t = t.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
+  // Unordered list
+  t = t.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, m => {
+    const items = m.trim().split('\n').map(l => `<li>${l.replace(/^[ \t]*[-*+] /,'')}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  });
+  // Ordered list
+  t = t.replace(/((?:^\d+\. .+\n?)+)/gm, m => {
+    const items = m.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /,'')}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  });
+  // Paragraphs
+  t = t.split(/\n\n+/).map(block => {
+    if (/^<(h[1-6]|ul|ol|table|pre|hr|blockquote|div)/.test(block.trim())) return block;
+    const inner = block.trim();
+    if (!inner) return '';
+    return `<p>${inner.replace(/\n/g,' ')}</p>`;
+  }).join('\n');
+
+  return t;
+}
+
+// Mini version for feed (no tables, just basic formatting)
+function renderMarkdownMini(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^## (.+)$/gm,'<strong style="color:var(--gold)">$1</strong>')
+    .replace(/^### (.+)$/gm,'<strong>$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+
+// ══════════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════════
+function setScreen(name) {
+  const map = {setup:'screenSetup', analysis:'screenAnalysis', results:'screenResults'};
+  Object.values(map).forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active');
+  });
+  document.getElementById(map[name]).classList.add('active');
+}
+
+let toastTimer;
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 2800);
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+checkLaunch();
+renderCVList();
+</script>
+</body>
+</html>
