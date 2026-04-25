@@ -439,11 +439,30 @@ tbody tr:hover td{background:#fafbff!important}
       <div class="auth-hint">Acces reserve aux administrateurs autorises</form>
     </div>
     <div id="auth-reset-form" style="display:none">
-      <label class="auth-label">Code de recuperation</label>
-      <input class="auth-input" id="auth-reset-code" type="text" placeholder="Code fourni par Terrassement" style="font-family:monospace;letter-spacing:1px">
-      <div class="auth-err" id="auth-reset-err"></div>
-      <button class="auth-btn" onclick="authReset()">REINITIALISER &rarr;</button>
-      <div class="auth-hint" style="cursor:pointer;margin-top:12px" onclick="authShowLogin()">&#8592; Retour</div>
+      <!-- Étape 1 : demande d'envoi d'email -->
+      <div id="auth-reset-step1">
+        <label class="auth-label">Récupération par email</label>
+        <input class="auth-input" id="auth-reset-username" type="text" placeholder="Votre identifiant admin" autocomplete="username" spellcheck="false">
+        <div class="auth-err" id="auth-reset-err"></div>
+        <button class="auth-btn" onclick="authSendResetEmail()">ENVOYER LE LIEN &rarr;</button>
+        <div class="auth-hint">Un lien valable 30 min sera envoyé à l'email associé à votre compte</div>
+      </div>
+      <!-- Étape 2 : confirmation envoi -->
+      <div id="auth-reset-step2" style="display:none">
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:32px;margin-bottom:12px">📧</div>
+          <div style="color:rgba(255,255,255,.85);font-size:14px;font-weight:600;margin-bottom:8px">Email envoyé !</div>
+          <div style="color:rgba(255,255,255,.5);font-size:12px;line-height:1.6">Vérifiez votre boîte mail et cliquez<br>sur le lien de réinitialisation.</div>
+        </div>
+      </div>
+      <!-- Étape 3 : saisie du nouveau mot de passe (affiché quand ?adminreset= est présent) -->
+      <div id="auth-reset-step3" style="display:none">
+        <label class="auth-label">Nouveau mot de passe</label>
+        <input class="auth-input" id="auth-reset-newpass" type="password" placeholder="Minimum 8 caractères" autocomplete="new-password">
+        <div class="auth-err" id="auth-reset-newpass-err"></div>
+        <button class="auth-btn" onclick="authSetNewPassword()">DÉFINIR LE MOT DE PASSE &rarr;</button>
+      </div>
+      <div class="auth-hint" style="cursor:pointer;margin-top:12px" onclick="authShowLogin()">&#8592; Retour à la connexion</div>
     </div>
   </div>
 </div>
@@ -1092,7 +1111,19 @@ tbody tr:hover td{background:#fafbff!important}
         </div>
         <div style="background:var(--as2);border-radius:12px;padding:14px">
           <div style="font-size:11px;font-weight:700;color:var(--am);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Modifier mon mot de passe</div>
-          <div style="display:flex;gap:8px"><input id="chg-pwd-old" type="password" placeholder="Mot de passe actuel" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none"><input id="chg-pwd-new" type="password" placeholder="Nouveau mot de passe" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none"><button onclick="changeAdminPassword()" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">Modifier</button></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="chpwd-old" type="password" placeholder="Mot de passe actuel" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
+            <input id="chpwd-new" type="password" placeholder="Nouveau mot de passe (8 min.)" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
+            <button onclick="changeAdminPassword()" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">Modifier</button>
+          </div>
+          <div id="chpwd-result" style="font-size:12px;display:none;padding:7px 10px;border-radius:7px"></div>
+          <div style="font-size:11px;font-weight:700;color:var(--am);text-transform:uppercase;letter-spacing:.5px;margin-top:14px;margin-bottom:10px">Email de récupération</div>
+          <div style="display:flex;gap:8px;margin-bottom:4px">
+            <input id="chpwd-email" type="email" placeholder="votre@email.com" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
+            <button onclick="saveAdminEmail()" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">Sauvegarder</button>
+          </div>
+          <div id="chpwd-email-result" style="font-size:12px;display:none;padding:7px 10px;border-radius:7px"></div>
+          <div style="font-size:11px;color:var(--am);margin-top:4px">Utilisé pour recevoir les liens de réinitialisation de mot de passe.</div>
         </div>
       </div>
     </div>
@@ -1620,7 +1651,7 @@ function deleteActiveClient(){
 function showOv(id){
   $(id).classList.add('show');
   if(id==='ov-settings'){
-    setTimeout(renderAdminList,50);
+    setTimeout(function(){renderAdminList();prefillAdminEmail();},50);
     // Load EmailJS config
     var f={'set-ejs-svc':'terr_ejs_svc','set-ejs-key':'terr_ejs_key','set-ejs-tpl-reg':'terr_ejs_tpl_reg','set-ejs-tpl-rst':'terr_ejs_tpl_rst'};
     Object.keys(f).forEach(function(id){var el=$(id);var v=Store.get(f[id]);if(el&&v)el.value=v;});
@@ -5707,9 +5738,30 @@ function parseUrl(){
   var params=new URLSearchParams(window.location.search);
   var portal=params.get('portal');
   var reset=params.get('reset');
+  var adminreset=params.get('adminreset');
 
   // Validation stricte du portalId : uniquement alphanumériques, tirets et underscores
   if(portal&&!/^[a-zA-Z0-9_-]+$/.test(portal))portal=null;
+
+  // Lien de réinitialisation admin reçu par email
+  if(adminreset){
+    showScr('admin');
+    // Afficher directement le formulaire de définition du nouveau mot de passe
+    setTimeout(function(){
+      var authScr=document.getElementById('auth-screen');
+      if(authScr&&!authScr.classList.contains('hidden')){
+        document.getElementById('auth-login-form').style.display='none';
+        document.getElementById('auth-reset-form').style.display='block';
+        var s1=document.getElementById('auth-reset-step1');
+        var s2=document.getElementById('auth-reset-step2');
+        var s3=document.getElementById('auth-reset-step3');
+        if(s1)s1.style.display='none';
+        if(s2)s2.style.display='none';
+        if(s3)s3.style.display='block';
+      }
+    },200);
+    return;
+  }
 
   if(portal){
     loadPortal(portal);
@@ -7576,6 +7628,15 @@ function authTogglePwd(){
 function authShowReset(){
   document.getElementById('auth-login-form').style.display='none';
   document.getElementById('auth-reset-form').style.display='block';
+  // Afficher l'étape 1 par défaut (pas l'étape 3 du token)
+  var s1=document.getElementById('auth-reset-step1');
+  var s2=document.getElementById('auth-reset-step2');
+  var s3=document.getElementById('auth-reset-step3');
+  if(s1)s1.style.display='block';
+  if(s2)s2.style.display='none';
+  if(s3)s3.style.display='none';
+  var errEl=document.getElementById('auth-reset-err');
+  if(errEl){errEl.textContent='';errEl.className='auth-err';}
 }
 
 function authShowLogin(){
@@ -7616,6 +7677,97 @@ async function authReset(){
   }
 }
 
+// ── Récupération de mot de passe par email ─────────────────────────────────
+async function authSendResetEmail(){
+  var usernameEl=document.getElementById('auth-reset-username');
+  var err=document.getElementById('auth-reset-err');
+  var username=(usernameEl?usernameEl.value.trim().toLowerCase():'');
+  if(!username){err.textContent='Entrez votre identifiant.';err.className='auth-err on';return}
+  var admins=await authGetOrBootstrapAdmins();
+  var admin=admins.find(function(a){return a.username===username});
+  if(!admin||!admin.email){
+    err.textContent='Aucun email associé à ce compte. Configurez-le dans Paramètres > Sécurité.';
+    err.className='auth-err on';return;
+  }
+  // Générer un code aléatoire et l'enregistrer dans le workspace Supabase
+  var code=uid()+uid()+uid();
+  var exp=Date.now()+30*60*1000;
+  var token=btoa(JSON.stringify({u:username,c:code,exp:exp}));
+  try{
+    var rows=await sbFetch('GET','/rest/v1/workspace?id=eq.main&select=data');
+    var ws=(rows&&rows[0])?rows[0].data:{};
+    if(!ws.adminResets)ws.adminResets={};
+    ws.adminResets[username]={code:code,exp:exp};
+    await sbFetch('PATCH','/rest/v1/workspace?id=eq.main',{data:ws,updated_at:new Date().toISOString()});
+  }catch(e){err.textContent='Erreur serveur. Réessayez.';err.className='auth-err on';return}
+  // Envoyer via EmailJS
+  var svc=Store.get('terr_ejs_svc');
+  var key=Store.get('terr_ejs_key');
+  var tpl=Store.get('terr_ejs_tpl_rst');
+  if(!svc||!key||!tpl){
+    err.textContent='EmailJS non configuré dans les paramètres.';err.className='auth-err on';return;
+  }
+  var resetLink=window.location.origin+'/app.html?adminreset='+encodeURIComponent(token);
+  try{
+    if(window.emailjs){emailjs.init({publicKey:key});}
+    else{err.textContent='EmailJS non chargé. Rechargez la page.';err.className='auth-err on';return}
+    await emailjs.send(svc,tpl,{to_email:admin.email,username:admin.username,reset_link:resetLink,expiry:'30 minutes'});
+    // Afficher l'étape 2
+    var s1=document.getElementById('auth-reset-step1');
+    var s2=document.getElementById('auth-reset-step2');
+    if(s1)s1.style.display='none';
+    if(s2)s2.style.display='block';
+  }catch(e){err.textContent='Erreur d\'envoi email. Vérifiez la config EmailJS.';err.className='auth-err on';}
+}
+
+async function authSetNewPassword(){
+  var newpassEl=document.getElementById('auth-reset-newpass');
+  var err=document.getElementById('auth-reset-newpass-err');
+  if(!newpassEl)return;
+  var newpass=newpassEl.value;
+  if(newpass.length<8){err.textContent='Minimum 8 caractères.';err.className='auth-err on';return}
+  var params=new URLSearchParams(window.location.search);
+  var rawToken=params.get('adminreset');
+  if(!rawToken){err.textContent='Token manquant.';err.className='auth-err on';return}
+  var tokenData;
+  try{tokenData=JSON.parse(atob(decodeURIComponent(rawToken)));}
+  catch{err.textContent='Token invalide.';err.className='auth-err on';return}
+  if(!tokenData.u||!tokenData.c||tokenData.exp<Date.now()){
+    err.textContent='Lien expiré. Demandez un nouveau lien.';err.className='auth-err on';return;
+  }
+  try{
+    var rows=await sbFetch('GET','/rest/v1/workspace?id=eq.main&select=data');
+    var ws=(rows&&rows[0])?rows[0].data:{};
+    var entry=ws.adminResets&&ws.adminResets[tokenData.u];
+    if(!entry||entry.code!==tokenData.c||entry.exp<Date.now()){
+      err.textContent='Lien invalide ou déjà utilisé.';err.className='auth-err on';return;
+    }
+    var admins=await authGetOrBootstrapAdmins();
+    var admin=admins.find(function(a){return a.username===tokenData.u});
+    if(!admin){err.textContent='Compte introuvable.';err.className='auth-err on';return}
+    admin.hash=await authHash(admin.username+':'+newpass);
+    authSaveAdmins(admins);
+    _syncAdminToSupabase(admin);
+    // Supprimer le token utilisé
+    delete ws.adminResets[tokenData.u];
+    await sbFetch('PATCH','/rest/v1/workspace?id=eq.main',{data:ws,updated_at:new Date().toISOString()});
+    // Nettoyer l'URL
+    var url=new URL(window.location.href);
+    url.searchParams.delete('adminreset');
+    window.history.replaceState({},'',url);
+    // Succès → retour login
+    authShowLogin();
+    var succEl=document.getElementById('auth-err');
+    if(succEl){
+      succEl.textContent='✓ Mot de passe défini. Connectez-vous.';
+      succEl.style.background='rgba(34,197,94,.12)';succEl.style.borderColor='rgba(34,197,94,.3)';succEl.style.color='#4ade80';
+      succEl.className='auth-err on';
+    }
+    var userEl=document.getElementById('auth-user');
+    if(userEl)userEl.value=admin.username;
+  }catch(e){err.textContent='Erreur serveur. Réessayez.';err.className='auth-err on';}
+}
+
 // ---- Admin management in settings ----
 function renderAdminList(){
   var el=document.getElementById('admin-list-container');if(!el)return;
@@ -7630,29 +7782,70 @@ function renderAdminList(){
   }).join('')  +'<div style="font-size:10px;color:var(--am);margin-top:8px;padding:6px 2px">'  +'&#128274; Les mots de passe sont hashés — jamais stockés en clair · &#9729; Synchronisé sur tous les appareils via Supabase</div>';
 }
 
+function _showPwdResult(el, msg, ok){
+  if(!el)return;
+  el.textContent=msg;
+  el.style.display='block';
+  el.style.background=ok?'rgba(34,197,94,.1)':'rgba(229,62,62,.1)';
+  el.style.border='1px solid '+(ok?'rgba(34,197,94,.3)':'rgba(229,62,62,.25)');
+  el.style.color=ok?'#22c55e':'#fc8181';
+  clearTimeout(el._t);
+  if(ok)el._t=setTimeout(function(){el.style.display='none'},4000);
+}
+
 async function changeAdminPassword(){
   var oldPwd=document.getElementById('chpwd-old');
   var newPwd=document.getElementById('chpwd-new');
   var res=document.getElementById('chpwd-result');
   if(!oldPwd||!newPwd||!res)return;
   var session=null;try{session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
-  if(!session){res.textContent='Session expirée. Reconnectez-vous.';res.style.color='#c0392b';return}
+  if(!session){_showPwdResult(res,'Session expirée. Reconnectez-vous.',false);return}
+  if(!oldPwd.value||!newPwd.value){_showPwdResult(res,'Remplissez les deux champs.',false);return}
   var admins=await authGetOrBootstrapAdmins();
   var admin=admins.find(function(a){return a.id===session.id});
-  if(!admin){res.textContent='Administrateur introuvable.';res.style.color='#c0392b';return}
-  // Vérifier l'ancien mot de passe (supporte SHA-256 et ancien hachage pour migration)
+  if(!admin){_showPwdResult(res,'Administrateur introuvable.',false);return}
   var oldHash=await authHash(admin.username+':'+oldPwd.value);
   var legacyOldHash=_legacyHash(admin.username+':'+oldPwd.value);
   if(oldHash!==admin.hash&&legacyOldHash!==admin.hash){
-    res.textContent='Mot de passe actuel incorrect.';res.style.color='#c0392b';return;
+    _showPwdResult(res,'Mot de passe actuel incorrect.',false);return;
   }
-  if(newPwd.value.length<8){res.textContent='Nouveau mot de passe trop court (8 min).';res.style.color='#c0392b';return}
+  if(newPwd.value.length<8){_showPwdResult(res,'Nouveau mot de passe trop court (8 min).',false);return}
   admin.hash=await authHash(admin.username+':'+newPwd.value);
   authSaveAdmins(admins);
   _syncAdminToSupabase(admin);
   oldPwd.value='';newPwd.value='';
-  res.textContent='✓ Mot de passe modifié avec succès.';res.style.color='var(--ag)';
+  _showPwdResult(res,'✓ Mot de passe modifié avec succès.',true);
   renderAdminList();
+}
+
+async function saveAdminEmail(){
+  var emailEl=document.getElementById('chpwd-email');
+  var res=document.getElementById('chpwd-email-result');
+  if(!emailEl||!res)return;
+  var email=emailEl.value.trim().toLowerCase();
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    _showPwdResult(res,'Adresse email invalide.',false);return;
+  }
+  var session=null;try{session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
+  if(!session){_showPwdResult(res,'Session expirée.',false);return}
+  var admins=await authGetOrBootstrapAdmins();
+  var admin=admins.find(function(a){return a.id===session.id});
+  if(!admin){_showPwdResult(res,'Administrateur introuvable.',false);return}
+  admin.email=email;
+  authSaveAdmins(admins);
+  _syncAdminToSupabase(admin);
+  _showPwdResult(res,'✓ Email sauvegardé.',true);
+}
+
+// Pré-remplir l'email connu au chargement des settings
+function prefillAdminEmail(){
+  var session=null;try{session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
+  if(!session)return;
+  var admins=authGetAdmins();
+  if(!admins)return;
+  var admin=admins.find(function(a){return a.id===session.id});
+  var el=document.getElementById('chpwd-email');
+  if(el&&admin&&admin.email)el.value=admin.email;
 }
 
 function exportAdminData(){
