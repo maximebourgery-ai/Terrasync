@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Connexion | TerrasyncAutomation</title>
 <meta name="description" content="Connectez-vous à votre portail TerrasyncAutomation pour accéder à vos outils IA.">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Pas de SDK Supabase côté client : la recherche de portail passe par /api/find-portal -->
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1419;color:#fff;min-height:100vh;display:flex;flex-direction:column}
@@ -97,10 +97,7 @@ footer a{color:#4a8fd8;text-decoration:none}
 <div class="toast" id="toast"></div>
 
 <script>
-const SUPABASE_URL = 'https://xhhbutwopvwfwqspbsiu.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoaGJ1dHdvcHZ3Zndxc3Bic2l1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTYzOTQsImV4cCI6MjA4OTQ5MjM5NH0.hmaUibc3KkiRWl2qJvX5Uy7K6IZLQt6568LsrIGW0pg';
-
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function showToast(message, type = 'success') {
   const toast = document.getElementById('toast');
@@ -111,41 +108,48 @@ function showToast(message, type = 'success') {
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  
-  const email = document.getElementById('email').value.trim();
-  const btn = document.getElementById('loginBtn');
-  
-  if (!email) {
-    showToast('Veuillez entrer votre email', 'error');
+
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const btn   = document.getElementById('loginBtn');
+
+  if (!email || !EMAIL_RE.test(email)) {
+    showToast('Adresse email invalide', 'error');
     return;
   }
-  
+
   btn.disabled = true;
   btn.textContent = 'Connexion...';
-  
+
   try {
-    // Chercher le portail de l'utilisateur
-    const { data, error } = await supabaseClient
-      .from('portal_users')
-      .select('cid')
-      .eq('email', email)
-      .single();
-    
-    if (error || !data) {
-      showToast('Email non reconnu. Demandez un accès d\'abord.', 'error');
+    const resp = await fetch('/api/find-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || !data.success) {
+      showToast("Email non reconnu. Demandez un accès d'abord.", 'error');
       btn.disabled = false;
       btn.textContent = 'Se connecter →';
       return;
     }
-    
-    // Rediriger vers le portail
+
+    // Validation stricte du portalId avant la redirection (anti open-redirect)
+    const portalId = data.portalId;
+    if (!portalId || !/^[a-zA-Z0-9_-]+$/.test(portalId)) {
+      showToast('Erreur de configuration. Contactez le support.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Se connecter →';
+      return;
+    }
+
     showToast('Connexion réussie ! Redirection...', 'success');
     setTimeout(() => {
-      window.location.href = `/app.html?portal=${data.cid}`;
+      window.location.href = `/app.html?portal=${encodeURIComponent(portalId)}`;
     }, 1000);
-    
-  } catch (err) {
-    console.error('Login error:', err);
+
+  } catch {
     showToast('Erreur de connexion. Réessayez.', 'error');
     btn.disabled = false;
     btn.textContent = 'Se connecter →';

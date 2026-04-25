@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS tool_content (
 );
 CREATE INDEX IF NOT EXISTS tool_content_workspace ON tool_content(workspace_id);
 
--- Table manquante : historique versions (max 5 par outil)
+-- Historique versions (max 5 par outil)
 CREATE TABLE IF NOT EXISTS tool_versions (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   tool_id TEXT NOT NULL,
@@ -60,8 +60,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS portal_users_email_cid ON portal_users(email, 
 ALTER TABLE workspace REPLICA IDENTITY FULL;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workspace; EXCEPTION WHEN others THEN NULL; END $$;
 
-ALTER TABLE workspace     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE tool_content  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE tool_versions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE portal_files  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE portal_users  DISABLE ROW LEVEL SECURITY;
+-- ── Row Level Security ────────────────────────────────────────────────────────
+-- Toutes les tables sont protégées : seul le service_role (clé serveur) a accès.
+-- L'application passe par /api/anthropic (Cloudflare Worker) qui détient la
+-- clé service côté serveur — jamais exposée au navigateur.
+
+ALTER TABLE workspace     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_content  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portal_files  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portal_users  ENABLE ROW LEVEL SECURITY;
+
+-- Seul le service_role peut lire/écrire (bypass RLS automatique pour service_role)
+-- Aucune politique anon n'est créée → clé publique ne peut plus accéder aux données
+
+-- Nettoyage des anciennes politiques permissives si elles existent
+DROP POLICY IF EXISTS "workspace_service_only"    ON workspace;
+DROP POLICY IF EXISTS "tool_content_service_only" ON tool_content;
+DROP POLICY IF EXISTS "tool_versions_service_only" ON tool_versions;
+DROP POLICY IF EXISTS "portal_files_service_only" ON portal_files;
+DROP POLICY IF EXISTS "portal_users_service_only" ON portal_users;
