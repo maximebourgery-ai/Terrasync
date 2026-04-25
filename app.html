@@ -10,20 +10,20 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0)}
 :root{
-  --ab:#f4f6fb;--as:#ffffff;--as2:#f0f2f8;
-  --ag:#6c63ff;--ag2:#5a52e8;--agl:#f0effe;--agm:#d4d0ff;
-  --ad:#1a1d2e;--am:#8b8fa8;--abdr:#e8eaf2;--ared:#e53e3e;
+  --ab:#0d1020;--as:#131726;--as2:#1a2035;
+  --ag:#6c63ff;--ag2:#5a52e8;--agl:rgba(108,99,255,.14);--agm:rgba(108,99,255,.28);
+  --ad:#f0f4ff;--am:rgba(200,210,255,.5);--abdr:rgba(255,255,255,.08);--ared:#f87171;
   --cb:#1a1d2e;--cs:#2d3148;
   --cfnt:'Barlow Condensed',sans-serif;
   --bfnt:'DM Sans',sans-serif;
   --mfnt:'DM Mono',monospace;
   --r:10px;--r2:14px;--r3:18px;
-  --sh:0 1px 4px rgba(108,99,255,.08),0 1px 2px rgba(0,0,0,.04);
-  --sh2:0 4px 16px rgba(108,99,255,.12),0 2px 8px rgba(0,0,0,.05);
-  --sh3:0 12px 36px rgba(108,99,255,.16),0 4px 14px rgba(0,0,0,.07);
+  --sh:0 1px 8px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.15);
+  --sh2:0 4px 20px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.2);
+  --sh3:0 12px 40px rgba(0,0,0,.55),0 4px 16px rgba(0,0,0,.25);
 }
 html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smoothing:antialiased;overflow:hidden;color:var(--ad)}
-.scr{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden;color-scheme:light}
+.scr{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden;color-scheme:dark}
 .scr.on{display:flex}
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(108,99,255,.18);border-radius:4px}
 
@@ -472,6 +472,49 @@ tbody tr:hover td{background:#fafbff!important}
   50% { transform: scale(1.05); }
   100% { transform: scale(1); }
 }
+/* ── DARK OVERRIDES (admin + modals) ── */
+.ah{background:#131726!important;border-bottom-color:rgba(255,255,255,.07)!important;box-shadow:0 1px 16px rgba(0,0,0,.5)!important}
+.asb{background:#0f1424!important;border-right-color:rgba(255,255,255,.06)!important}
+.amp{background:#0d1020!important}
+.tc{background:#131726!important;border-color:rgba(255,255,255,.08)!important;box-shadow:none!important}
+.tc:hover{box-shadow:0 8px 32px rgba(0,0,0,.5)!important;border-color:rgba(255,255,255,.16)!important}
+.ahtab.on{background:rgba(255,255,255,.12)!important;color:#fff!important}
+.kb-card{background:#1a2035!important;border-color:rgba(255,255,255,.08)!important;box-shadow:none!important}
+.kb-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.4)!important}
+.btn-g{background:rgba(255,255,255,.07)!important;border-color:rgba(255,255,255,.1)!important}
+.btn-r{background:rgba(239,68,68,.1)!important;border-color:rgba(239,68,68,.2)!important;color:#f87171!important}
+.btn-r:hover{background:rgba(239,68,68,.18)!important}
+.bg-amber{background:rgba(251,191,36,.1)!important;color:#fbbf24!important;border-color:rgba(251,191,36,.22)!important}
+.bg-red{background:rgba(239,68,68,.1)!important;color:#f87171!important;border-color:rgba(239,68,68,.22)!important}
+.tc2{background:rgba(255,255,255,.06)!important}
+.tc2:hover{background:rgba(255,255,255,.1)!important;border-color:rgba(108,99,255,.4)!important}
+.tc2.on{background:rgba(108,99,255,.15)!important;border-color:var(--ag)!important}
+tbody tr:hover td{background:rgba(255,255,255,.04)!important}
+.toast{background:#1e2240!important;color:#f0f4ff!important}
+/* Modals */
+.ov{background:rgba(0,0,0,.75)!important}
+.ovc,.modal{background:#131726!important}
+.modal{box-shadow:0 -8px 48px rgba(0,0,0,.65)!important}
+.mft{border-top-color:rgba(255,255,255,.07)!important}
+.fg input,.fg select,.fg textarea{background:#0f1424!important;border-color:rgba(255,255,255,.1)!important;color:#f0f4ff!important}
+.fg input::placeholder,.fg textarea::placeholder{color:rgba(200,210,255,.22)!important}
+.fg select option{background:#131726;color:#f0f4ff}
+.hint{color:rgba(200,210,255,.38)!important}
+/* Override hardcoded light colors inside overlays */
+.ov *[style*="color:#0a0a08"]{color:var(--ad)!important}
+.ov *[style*="color:#374151"]{color:rgba(200,210,255,.7)!important}
+.ov *[style*="color:#444"]{color:rgba(200,210,255,.65)!important}
+.ov *[style*="color:#92400e"]{color:#fbbf24!important}
+.ov *[style*="color:#166534"]{color:#4ade80!important}
+.ov *[style*="color:#c0392b"]{color:#f87171!important}
+.ov *[style*="background:#fff;"]{background:var(--as)!important}
+.ov *[style*="background:#fafafa"]{background:var(--as2)!important}
+.ov *[style*="background:#fef3e2"]{background:rgba(251,191,36,.1)!important;color:#fbbf24!important}
+.ov *[style*="background:#fef2f2"]{background:rgba(239,68,68,.08)!important;color:#f87171!important}
+.ov *[style*="background:#f0fdf4"]{background:rgba(74,222,128,.08)!important;color:#4ade80!important}
+#mdrop{background:var(--as2)!important;border-color:rgba(255,255,255,.12)!important}
+#icon-picker-panel{background:#131726!important;border-color:rgba(255,255,255,.12)!important;box-shadow:0 8px 32px rgba(0,0,0,.6)!important}
+
 </style>
 </head>
 <body>
@@ -5009,9 +5052,11 @@ function _doRenderPortalApp(c){
       var _ccCfg=S.clients.find(function(x){return x.id===portalCid;});
       var _ccRate=(_ccCfg&&_ccCfg.creditRate)||0.08;
       var _ccEur=cc>0?(cc*_ccRate).toFixed(2):'';
-      var tIcon=t.icon||'&#128736;';
+      var _psvg=['<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2c-2.5 3.5-4 7-4 10s1.5 6.5 4 10M12 2c2.5 3.5 4 7 4 10s-1.5 6.5-4 10"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="rgba(255,255,255,.92)"><polygon points="13,2 6,13 11,13 10,22 18,11 13,11"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 22,8 12,14 2,8"/><polyline points="2,12 12,18 22,12"/><polyline points="2,17 12,23 22,17"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="19" y1="15" x2="22" y2="15"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8,6 2,12 8,18"/><polyline points="16,6 22,12 16,18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 21,7.5 21,16.5 12,22 3,16.5 3,7.5"/><circle cx="12" cy="12" r="3" fill="rgba(255,255,255,.92)" stroke="none"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="rgba(255,255,255,.92)"><path d="M12,1L13.5,10L22,12L13.5,14L12,23L10.5,14L2,12L10.5,10Z"/></svg>','<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="rgba(255,255,255,.92)"/></svg>'];
+      var _psvgmap={'web':0,'ai':1,'masterprompt':2};
+      var tSvg=_psvg[_psvgmap[t.type]!==undefined?_psvgmap[t.type]:((i+3)%_psvg.length)];
       h+='<div class="t-card" data-tid="'+t.id+'" onclick="handleToolClick(this.dataset.tid)" style="--tc-color:'+color+'">';
-      h+='<div class="t-ico-wrap" style="background:rgba('+colorRgb+',.12);border-color:rgba('+colorRgb+',.2)">'+tIcon+'</div>';
+      h+='<div class="t-ico-wrap" style="background:rgba('+colorRgb+',.15);border-color:rgba('+colorRgb+',.25)">'+tSvg+'</div>';
       h+='<div class="t-type-badge">'+typeLabel+'</div>';
       h+='<div class="t-name">'+t.name+'</div>';
       h+='<div class="t-desc">'+(t.desc||'Cliquez pour accéder à cet outil.')+'</div>';
