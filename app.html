@@ -7711,7 +7711,7 @@ async function authSendResetEmail(){
   try{
     if(window.emailjs){emailjs.init({publicKey:key});}
     else{err.textContent='EmailJS non chargé. Rechargez la page.';err.className='auth-err on';return}
-    await emailjs.send(svc,tpl,{to_email:admin.email,username:admin.username,reset_link:resetLink,expiry:'30 minutes'});
+    await emailjs.send(svc,tpl,{to_name:admin.username,to_email:admin.email,link:resetLink});
     // Afficher l'étape 2
     var s1=document.getElementById('auth-reset-step1');
     var s2=document.getElementById('auth-reset-step2');
