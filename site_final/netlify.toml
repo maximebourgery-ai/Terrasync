@@ -1,5 +1,0 @@
-[build]
-  publish = "."
-
-# Pas de redirections pour l'instant
-# Le sitemap.xml sera accessible directement

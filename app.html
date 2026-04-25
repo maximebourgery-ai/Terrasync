@@ -6034,40 +6034,30 @@ function sbFetch(method, path, payload, extra) {
 
 // ── persist : sauvegarde workspace SANS htmlContent ──────────────────
 // htmlContent est dans tool_content, jamais dans workspace.data
-function swPushData(data, immediate) {
+function swPushData(_unused, immediate) {
+  // Lit toujours S au moment du save réel — corrige le bug de closure périmée
+  // qui causait la disparition des webapps quand jbPull remplaçait S.tools
+  // pendant qu'une sauvegarde Supabase était en attente (debounce).
   clearTimeout(_sbDebounce);
-  var delay = immediate ? 0 : 400;
-  _sbDebounce = setTimeout(function(){
-    if(_sbSyncing){
-      // Reschedule si syncing en cours (max 3 tentatives pour éviter boucle)
-      var _nRetries = (swPushData._retries = (swPushData._retries||0)+1);
-      if(_nRetries < 5){
-        _sbDebounce = setTimeout(function(){ swPushData(data, immediate); }, 800);
-      } else {
-        swPushData._retries = 0;
-        _sbSyncing = false; // forcer le déblocage
-        _sbDebounce = setTimeout(function(){ swPushData(data, immediate); }, 100);
-      }
-      return;
-    }
-    swPushData._retries = 0;
+  function _doSync() {
+    if (_sbSyncing) { _sbDebounce = setTimeout(_doSync, 800); return; }
+    var clean = {
+      clients: S.clients,
+      tools: (S.tools||[]).map(function(t){ var r=Object.assign({},t); delete r.htmlContent; delete r.raw; return r; }),
+      users: S.users||[],
+      compta: S.compta||[],
+      creditCosts: S.creditCosts||{},
+      creditCostsReal: S.creditCostsReal||{},
+      simData: S.simData||{}
+    };
     _sbSyncing = true;
     jbSetStatus('sync','Sync...');
-    // Strip htmlContent avant de sauver (table séparée)
-    var clean = JSON.parse(JSON.stringify(data));
-    if(clean.tools) clean.tools = clean.tools.map(function(t){
-      var r = Object.assign({},t);
-      delete r.htmlContent;
-      delete r.raw;
-      return r;
-    });
     sbFetch('PATCH', '/rest/v1/workspace?id=eq.'+_sbWsId,
       {data: clean, updated_at: new Date().toISOString()}
     )
     .then(function(d){
       _sbSyncing = false;
       var t = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-      // Supabase retourne [] si row inexistante sur PATCH → créer
       if(!d || (Array.isArray(d) && d.length===0)) {
         return sbFetch('POST', '/rest/v1/workspace',
           {id:_sbWsId, data:clean, updated_at:new Date().toISOString()}
@@ -6076,7 +6066,8 @@ function swPushData(data, immediate) {
       jbSetStatus('ok','Sync ✓ '+t);
     })
     .catch(function(){ _sbSyncing=false; jbSetStatus('err','Hors ligne'); });
-  }, 800);
+  }
+  _sbDebounce = setTimeout(_doSync, immediate ? 0 : 800);
 }
 
 // ── jbPull : charge workspace depuis Supabase ─────────────────────────
