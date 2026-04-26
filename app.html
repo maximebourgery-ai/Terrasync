@@ -2027,50 +2027,54 @@ function renderCdBody(c,idx){
     h+='</div>';
   }
   if(tools.length){
-    h+='<div class="tgrid">';
+    h+='<div style="display:flex;flex-direction:column;gap:8px">';
     tools.forEach(function(t,ti){
       var p=pal(idx+ti+1);var isW=t.type==='web';
       var ck=isW?'web_app':(t.type==='masterprompt'?'masterprompt':'ai_haiku');
       var cc=CREDIT_COSTS[ck]||0;
-      var st={deployed:'<span class="badge bg-g"><span class="bdot"></span>Deploye</span>',pending:'<span class="badge bg-amber">En attente</span>',error:'<span class="badge bg-red">Erreur</span>'}[t.status]||'';
-      var openCb=isW&&t.status==='deployed'?'launchAdminTool(this.dataset.tid)':'toast(\'Non deploye\',false)';
-      var hasContent=isW?(t.htmlContent&&t.htmlContent.length>100||_toolHtmlCache[t.id]||t._hasStoredHtml||_toolContentIndex[t.id]):true;
-      var mc=PORTAL_PERSONAS[(typeof t.avatarIdx==='number'?t.avatarIdx:ti)%PORTAL_PERSONAS.length];
       var isMp=t.type==='masterprompt';
+      var st={deployed:'<span class="badge bg-g"><span class="bdot"></span>D\u00e9ploy\u00e9</span>',pending:'<span class="badge bg-amber">En attente</span>',error:'<span class="badge bg-red">Erreur</span>'}[t.status]||'';
+      var openCb=isW&&t.status==='deployed'?'launchAdminTool(this.dataset.tid)':'toast(\'Non d\u00e9ploy\u00e9\',false)';
+      var hasContent=isW?(t.htmlContent&&t.htmlContent.length>100||_toolHtmlCache[t.id]||t._hasStoredHtml||_toolContentIndex[t.id]):true;
       var toolInfo=_toolContentIndex[t.id];
-      var sizeStr=toolInfo?(' · '+Math.round(toolInfo.size/1024)+'KB'):'';
-      var loadBadge=isW?(hasContent
-        ?'<span style="background:#dcfce7;color:#166534;border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700">&#10003; Stocké'+sizeStr+'</span>'
-        :'<span style="background:#fef3e2;color:#b45309;border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700">&#9888; Non stocké</span>')
-        :(isMp?'<span style="background:#fdf4ff;color:#7b3fa8;border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700">&#127775; MasterPrompt</span>'
-        :'<span style="background:#eff6ff;color:#1e40af;border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700">&#129302; IA</span>');
+      var sizeStr=toolInfo?(' \u00b7 '+Math.round(toolInfo.size/1024)+'KB'):'';
       var typeName=isW?'Web App':isMp?'MasterPrompt':'Assistant IA';
-      h+='<div class="manga-tc" style="background:'+mc.bg+';border-radius:16px;overflow:hidden;border:1px solid rgba(0,0,0,.06);box-shadow:0 2px 12px rgba(0,0,0,.06);">'
-        // Tool type icon (clean geometric SVG)
-        +'<div style="padding:20px 16px 10px;display:flex;justify-content:center">'
-        +'<div style="width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 24px rgba(0,0,0,.3)">'
-        +(isW?'<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2c-2.5 3.5-4 7-4 10s1.5 6.5 4 10M12 2c2.5 3.5 4 7 4 10s-1.5 6.5-4 10"/></svg>'
-          :isMp?'<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 22,8 12,14 2,8"/><polyline points="2,12 12,18 22,12"/><polyline points="2,17 12,23 22,17"/></svg>'
-          :'<svg viewBox="0 0 24 24" width="30" height="30" fill="rgba(255,255,255,.92)"><polygon points="13,2 6,13 11,13 10,22 18,11 13,11"/></svg>')
-        +'</div></div>'
-        // Tool info
-        +'<div style="padding:10px 14px 14px">'
-        +'<div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff;margin-bottom:3px;line-height:1.1;text-shadow:0 1px 3px rgba(0,0,0,.6)">'+t.name+'</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,.75);margin-bottom:8px;line-height:1.4">'+(t.desc||'')+'</div>'
-        +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'
-        +'<span style="background:rgba(255,255,255,.12);border-radius:20px;padding:1px 8px;font-size:9px;font-weight:600;color:rgba(255,255,255,.85)">'+typeName+'</span>'
-        +loadBadge+st+'</div>'
-
-        +'<div style="display:flex;gap:5px;flex-wrap:wrap">'
-        +'<button class="btn btn-o btn-xs" data-tid="'+t.id+'" onclick="'+openCb+'">Ouvrir</button>'
-        +'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="editTool(this.dataset.tid)" style="border-color:rgba(255,255,255,.25);color:#fff">Modifier</button>'
-        +'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" data-ck="'+ck+'" onclick="_setToolCreditCostPrompt(this.dataset.tid,this.dataset.ck)" style="border-color:rgba(255,255,255,.25);color:#fff" title="Modifier prix">&#11042;</button>'
-        +(isW?'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="showToolVersions(this.dataset.tid)" title="Historique" style="border-color:rgba(255,255,255,.25);color:#fff">&#128336;</button>':'')
-        
-        +'<button class="btn btn-r btn-xs" data-tid="'+t.id+'" onclick="delTool(this.dataset.tid)">Suppr.</button>'
-        +'</div></div></div>';
+      var iconColor=isW?'#6c63ff':isMp?'#34d399':'#38bdf8';
+      var iconRgb=isW?'108,99,255':isMp?'52,211,153':'56,189,248';
+      var typeSvg=isW
+        ?'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2c-2.5 3.5-4 7-4 10s1.5 6.5 4 10M12 2c2.5 3.5 4 7 4 10s-1.5 6.5-4 10"/></svg>'
+        :isMp
+        ?'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 22,8 12,14 2,8"/><polyline points="2,12 12,18 22,12"/><polyline points="2,17 12,23 22,17"/></svg>'
+        :'<svg viewBox="0 0 24 24" width="22" height="22" fill="rgba(255,255,255,.9)"><polygon points="13,2 6,13 11,13 10,22 18,11 13,11"/></svg>';
+      var loadBadge=isW?(hasContent
+        ?'<span style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;color:#34d399">\u2713 Stock\u00e9'+sizeStr+'</span>'
+        :'<span style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;color:#fbbf24">\u26a0 Non stock\u00e9</span>')
+        :(isMp
+        ?'<span style="background:rgba(192,132,252,.1);border:1px solid rgba(192,132,252,.2);border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;color:#c084fc">\u2728 MasterPrompt</span>'
+        :'<span style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;color:#38bdf8">\u26a1 IA</span>');
+      h+='<div style="display:flex;align-items:center;gap:14px;background:#131726;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;transition:border-color .2s;position:relative;overflow:hidden">';
+      h+='<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:'+iconColor+'"></div>';
+      h+='<div style="width:46px;height:46px;min-width:46px;border-radius:13px;background:rgba('+iconRgb+',.13);border:1px solid rgba('+iconRgb+',.24);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+typeSvg+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">';
+      h+='<div style="font-family:var(--cfnt);font-size:17px;font-weight:900;color:#f0f4ff;text-transform:uppercase;letter-spacing:-.2px;line-height:1">'+t.name+'</div>';
+      h+=st;
+      h+='</div>';
+      h+='<div style="font-size:11px;color:rgba(200,210,255,.42);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(t.desc||'Aucune description')+'</div>';
+      h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
+      h+='<span style="background:rgba('+iconRgb+',.11);border:1px solid rgba('+iconRgb+',.22);border-radius:20px;padding:2px 9px;font-size:9px;font-weight:700;color:'+iconColor+'">'+typeName+'</span>';
+      h+=loadBadge;
+      h+='</div></div>';
+      h+='<div style="display:flex;gap:5px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">';
+      h+='<button class="btn btn-o btn-xs" data-tid="'+t.id+'" onclick="'+openCb+'">Ouvrir</button>';
+      h+='<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="editTool(this.dataset.tid)">Modifier</button>';
+      h+='<button class="btn btn-g btn-xs" data-tid="'+t.id+'" data-ck="'+ck+'" onclick="_setToolCreditCostPrompt(this.dataset.tid,this.dataset.ck)" title="Prix cr\u00e9dits" style="font-size:11px">\u29e1</button>';
+      h+=(isW?'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="showToolVersions(this.dataset.tid)" title="Historique">\u23f0</button>':'');
+      h+='<button class="btn btn-r btn-xs" data-tid="'+t.id+'" onclick="delTool(this.dataset.tid)">Suppr.</button>';
+      h+='</div></div>';
     });
     h+='</div>';
+
   } else {
     h+='<div style="background:var(--as);border:1px solid var(--abdr);border-radius:11px;padding:40px;text-align:center;margin-bottom:16px">'
       +'<div style="font-size:28px;opacity:.15;margin-bottom:12px">&#9889;</div>'
