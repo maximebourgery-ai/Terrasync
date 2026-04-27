@@ -6,97 +6,260 @@
 <title>TerrasyncAutomation — La toolbox IA des cabinets de conseil RH | Automatisation Recrutement</title>
 <meta name="description" content="Automatisez vos dossiers de compétences, scoring CV, sourcing candidats. 30 secondes au lieu de 30 minutes. 7 outils IA en une plateforme. -70% vs concurrence.">
 <link rel="canonical" href="https://terrasyncautomation.fr">
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+
+<!-- EmailJS -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1419;color:#fff;line-height:1.6;overflow-x:hidden}
+/* ── RESET ─────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
-/* HEADER */
-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(15,20,25,0.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.1);padding:1rem 2rem}
-.header-content{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.logo-link{display:flex;align-items:center;gap:12px;text-decoration:none}
-.logo-link img{width:50px;height:50px;object-fit:contain;mix-blend-mode:screen}
-.logo-text{font-size:20px;font-weight:700;color:#fff}
-.logo-text span{color:#4a8fd8}
-nav{display:flex;gap:2rem;align-items:center}
-nav a{color:#9ca3af;text-decoration:none;font-weight:500;transition:.3s}
-nav a:hover{color:#fff}
-.btn-login{background:#4a8fd8;color:#fff;padding:0.5rem 1.5rem;border-radius:8px;font-weight:600}
+/* ── VARIABLES ─────────────────────────────────────── */
+:root {
+  /* Couleurs principales */
+  --blue:         #4a8fd8;
+  --blue-glow:    rgba(74, 143, 216, .35);
+  --blue-dim:     rgba(74, 143, 216, .12);
+  --purple:       #6c63ff;
+  --purple-dim:   rgba(108, 99, 255, .12);
+  --green:        #4e7a36;
+  --green-dim:    rgba(78, 122, 54, .12);
 
-/* HERO */
-.hero{padding:150px 2rem 80px;text-align:center;max-width:1000px;margin:0 auto}
-.hero-badge{display:inline-block;background:rgba(74,143,216,0.1);color:#4a8fd8;padding:8px 20px;border-radius:20px;font-size:14px;font-weight:600;margin-bottom:30px;border:1px solid rgba(74,143,216,0.3)}
-.hero h1{font-size:56px;font-weight:900;line-height:1.2;margin-bottom:30px}
-.hero h1 .highlight{color:#4a8fd8}
-.hero p{font-size:20px;color:#9ca3af;margin-bottom:40px;max-width:700px;margin-left:auto;margin-right:auto}
-.cta-buttons{display:flex;gap:1rem;justify-content:center;margin-bottom:60px}
-.btn{padding:1rem 2rem;border-radius:12px;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:.3s}
-.btn-primary{background:#4a8fd8;color:#fff}
-.btn-primary:hover{background:#3a7fc8;transform:translateY(-2px)}
-.btn-secondary{background:rgba(255,255,255,0.05);color:#fff;border:1px solid rgba(255,255,255,0.2)}
+  /* Fonds */
+  --bg:           #0f1419;
+  --bg2:          rgba(26, 31, 46, .6);
 
-/* STATS */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;max-width:800px;margin:60px auto;padding:0 2rem}
-.stat{text-align:center}
-.stat-value{font-size:48px;font-weight:900;color:#4a8fd8;display:block}
-.stat-label{color:#9ca3af;font-size:14px}
+  /* Glass */
+  --glass:        rgba(255, 255, 255, .05);
+  --glass-border: rgba(255, 255, 255, .08);
+  --glass-hover:  rgba(255, 255, 255, .09);
 
-/* OUTILS */
-.section{padding:80px 2rem;max-width:1200px;margin:0 auto}
-.section-title{font-size:36px;font-weight:800;text-align:center;margin-bottom:20px}
-.section-subtitle{text-align:center;color:#9ca3af;font-size:18px;margin-bottom:60px}
-.tools-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:2rem}
-.tool-card{background:rgba(26,31,46,0.8);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:2rem;transition:.3s}
-.tool-card:hover{transform:translateY(-5px);border-color:#4a8fd8}
-.tool-icon{font-size:48px;margin-bottom:1rem}
-.tool-card h3{font-size:20px;margin-bottom:1rem;color:#fff}
-.tool-card p{color:#9ca3af;font-size:15px}
+  /* Texte */
+  --text:         #e8edf5;
+  --muted:        rgba(200, 215, 240, .55);
 
-/* PRICING */
-.pricing-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem;max-width:900px;margin:0 auto}
-.price-card{background:rgba(26,31,46,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:20px;padding:3rem;text-align:center;transition:.3s}
-.price-card.featured{border-color:#4a8fd8;background:rgba(74,143,216,0.05)}
-.price-card.featured::before{content:'RECOMMANDÉ';display:block;background:#4a8fd8;color:#fff;padding:6px 16px;border-radius:12px;font-size:12px;font-weight:700;width:fit-content;margin:0 auto 20px}
-.price-title{font-size:24px;font-weight:700;margin-bottom:10px}
-.price-amount{font-size:48px;font-weight:900;color:#4a8fd8;margin-bottom:10px}
-.price-period{color:#9ca3af;font-size:14px;margin-bottom:30px}
-.price-features{list-style:none;margin-bottom:30px;text-align:left}
-.price-features li{padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);color:#9ca3af}
-.price-features li::before{content:'✓';color:#4a8fd8;font-weight:700;margin-right:10px}
+  /* Typographie */
+  --cfnt: 'Barlow Condensed', sans-serif;
+  --bfnt: 'DM Sans', sans-serif;
+  --mfnt: 'DM Mono', monospace;
 
-.form-group{margin-bottom:20px}
-.form-group input{width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:16px}
-.form-group input:focus{outline:none;border-color:#4a8fd8}
+  /* Rayons */
+  --r:  10px;
+  --r2: 14px;
+  --r3: 20px;
+}
 
-/* FOOTER */
-footer{background:rgba(15,20,25,0.8);padding:3rem 2rem;text-align:center;border-top:1px solid rgba(255,255,255,0.1);margin-top:80px}
-footer p{color:#9ca3af;margin:5px 0}
-footer a{color:#4a8fd8;text-decoration:none}
+/* ── BASE ──────────────────────────────────────────── */
+body {
+  font-family: var(--bfnt);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
 
-/* TOAST */
-.toast{position:fixed;bottom:30px;right:30px;padding:1rem 2rem;border-radius:12px;background:#1a1f2e;border:1px solid rgba(255,255,255,0.2);color:#fff;display:none;z-index:200}
-.toast.show{display:block;animation:slideIn .3s}
-.toast.success{border-color:#30d158;background:rgba(48,209,88,0.1)}
-.toast.error{border-color:#ff375f;background:rgba(255,55,95,0.1)}
-@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+/* ── LAYOUT ────────────────────────────────────────── */
+.page { position: relative; z-index: 1; }
 
-/* RESPONSIVE */
-@media (max-width:768px){
-  .hero h1{font-size:36px}
-  .hero p{font-size:18px}
-  .stats{grid-template-columns:1fr}
-  .pricing-grid{grid-template-columns:1fr}
-  .cta-buttons{flex-direction:column}
-  nav{display:none}
-  .header-content{justify-content:center}
-  .story-section{padding:2rem;margin:40px 1rem}
+/* ── FOND ANIMÉ — ORBES ────────────────────────────── */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(130px);
+  opacity: .40;
+  animation: orbDrift 22s ease-in-out infinite alternate;
+}
+.orb-blue {
+  width: 750px; height: 750px;
+  background: radial-gradient(circle, #1a4a8a 0%, transparent 70%);
+  top: -250px; left: -200px;
+  animation-duration: 24s;
+}
+.orb-purple {
+  width: 620px; height: 620px;
+  background: radial-gradient(circle, #3d2f8f 0%, transparent 70%);
+  top: 25%; right: -180px;
+  animation-duration: 19s;
+  animation-delay: -7s;
+}
+.orb-green {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, #1a3d12 0%, transparent 70%);
+  bottom: -80px; left: 20%;
+  animation-duration: 27s;
+  animation-delay: -13s;
+}
+@keyframes orbDrift {
+  0%   { transform: translate(0, 0)        scale(1); }
+  33%  { transform: translate(45px, -35px) scale(1.06); }
+  66%  { transform: translate(-25px, 55px) scale(.94); }
+  100% { transform: translate(30px, 20px)  scale(1.03); }
+}
+
+/* ── HEADER ────────────────────────────────────────── */
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(15, 20, 25, .5);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid var(--glass-border);
+  padding: .9rem 2rem;
+  transition: background .3s;
+}
+header.scrolled { background: rgba(15, 20, 25, .85); }
+
+.header-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* Logo */
+.logo-link {
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none;
+}
+.logo-link img {
+  width: 44px; height: 44px;
+  object-fit: contain; mix-blend-mode: screen;
+}
+.logo-text {
+  font-family: var(--cfnt);
+  font-size: 22px; font-weight: 800; letter-spacing: .5px; color: #fff;
+}
+.logo-text span { color: var(--blue); }
+
+/* Nav */
+nav { display: flex; gap: 1.8rem; align-items: center; }
+nav a {
+  color: var(--muted); text-decoration: none;
+  font-size: 15px; font-weight: 500; letter-spacing: .2px;
+  transition: color .25s;
+}
+nav a:hover { color: #fff; }
+.nav-admin           { color: #6aab4a !important; }
+.nav-admin:hover     { color: #8fd468 !important; }
+
+/* Bouton Connexion */
+.btn-login {
+  background: var(--blue); color: #fff !important;
+  padding: .45rem 1.3rem; border-radius: var(--r);
+  font-size: 14px; font-weight: 600;
+  transition: background .25s, transform .2s !important;
+}
+.btn-login:hover { background: #3a7fc8; transform: translateY(-1px) !important; }
+
+/* ── RESPONSIVE HEADER ─────────────────────────────── */
+@media (max-width: 640px) {
+  header { padding: .75rem 1rem; }
+  nav { display: none; }
+  .logo-text { font-size: 18px; }
+}
+
+/* ── HERO ──────────────────────────────────────────── */
+.hero {
+  padding: 148px 2rem 50px;
+  text-align: center;
+}
+.hero-inner { max-width: 860px; margin: 0 auto; }
+
+/* Badge */
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(74, 143, 216, .10);
+  border: 1px solid rgba(74, 143, 216, .28);
+  color: var(--blue);
+  padding: 7px 20px; border-radius: 100px;
+  font-size: 13px; font-weight: 600; letter-spacing: .3px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(8px);
+}
+
+/* Titre */
+.hero h1 {
+  font-family: var(--cfnt);
+  font-size: clamp(46px, 8vw, 78px);
+  font-weight: 900; line-height: 1.05; letter-spacing: -1px;
+  color: #fff; margin-bottom: 22px;
+}
+.hl-blue   { color: var(--blue); }
+.hl-purple { color: #9b94ff; }
+
+/* Sous-titre */
+.hero-sub {
+  font-size: clamp(16px, 2.4vw, 18px);
+  color: var(--muted);
+  max-width: 620px; margin: 0 auto 36px;
+  line-height: 1.75;
+}
+
+/* Boutons */
+.cta-row {
+  display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  margin-bottom: 64px;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: .85rem 2rem; border-radius: var(--r2);
+  font-family: var(--bfnt);
+  font-size: 15px; font-weight: 600; letter-spacing: .2px;
+  text-decoration: none; cursor: pointer; border: none;
+  transition: transform .25s, box-shadow .25s, background .25s;
+}
+.btn-primary {
+  background: var(--blue); color: #fff;
+  box-shadow: 0 4px 20px rgba(74, 143, 216, .35);
+}
+.btn-primary:hover {
+  background: #3a7fc8;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(74, 143, 216, .5);
+}
+.btn-glass {
+  background: var(--glass); color: #fff;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px);
+}
+.btn-glass:hover {
+  background: var(--glass-hover);
+  border-color: rgba(255, 255, 255, .18);
+  transform: translateY(-2px);
+}
+
+/* ── RESPONSIVE HERO ───────────────────────────────── */
+@media (max-width: 640px) {
+  .hero { padding: 100px 1rem 40px; }
+  .cta-row { flex-direction: column; align-items: center; }
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-content">
+<!-- FOND ANIMÉ -->
+<div class="bg-canvas">
+  <div class="orb orb-blue"></div>
+  <div class="orb orb-purple"></div>
+  <div class="orb orb-green"></div>
+</div>
+
+<div class="page">
+
+<!-- HEADER -->
+<header id="header">
+  <div class="header-inner">
     <a href="/" class="logo-link">
       <img src="/logo.png" alt="TerrasyncAutomation">
       <div class="logo-text">Terrasync<span>Automation</span></div>
@@ -107,194 +270,27 @@ footer a{color:#4a8fd8;text-decoration:none}
       <a href="/tarifs.html">Tarifs</a>
       <a href="/a-propos.html">À propos</a>
       <a href="/blog/">Blog</a>
-      <a href="/app.html" style="color:#4a8fd8">Admin</a>
+      <a href="/app.html" class="nav-admin">Admin</a>
       <a href="/login.html" class="btn-login">Connexion</a>
     </nav>
   </div>
 </header>
 
+<!-- HERO -->
 <section class="hero">
-  <div class="hero-badge">✨ 7 outils IA en une plateforme</div>
-  <h1>La <span class="highlight">toolbox IA</span> des cabinets de conseil</h1>
-  <p>Automatisez vos dossiers de compétences, scoring CV, sourcing. Générez en 30 secondes ce qui prenait 30 minutes.</p>
-  <div class="cta-buttons">
-    <a href="#demo" class="btn btn-primary">Essai gratuit 1 semaine →</a>
-    <a href="/outils.html" class="btn btn-secondary">Découvrir les outils</a>
-  </div>
-  
-  <div class="stats">
-    <div class="stat">
-      <span class="stat-value">-70%</span>
-      <span class="stat-label">vs concurrence</span>
-    </div>
-    <div class="stat">
-      <span class="stat-value">30s</span>
-      <span class="stat-label">au lieu de 30 min</span>
-    </div>
-    <div class="stat">
-      <span class="stat-value">7</span>
-      <span class="stat-label">outils IA inclus</span>
+  <div class="hero-inner">
+    <div class="hero-badge">✨ 7 outils IA en une plateforme</div>
+    <h1>La <span class="hl-blue">toolbox IA</span> des<br>cabinets de <span class="hl-purple">conseil RH</span></h1>
+    <p class="hero-sub">Automatisez vos dossiers de compétences, scoring CV, sourcing. Générez en 30 secondes ce qui prenait 30 minutes.</p>
+    <div class="cta-row">
+      <a href="#demo" class="btn btn-primary">Essai gratuit 1 semaine →</a>
+      <a href="/outils.html" class="btn btn-glass">Découvrir les outils</a>
     </div>
   </div>
+  <!-- Écrans 3D + Stats à venir -->
 </section>
 
-<section class="section">
-  <h2 class="section-title">7 Outils IA pour Automatiser Votre Cabinet</h2>
-  <p class="section-subtitle">Tout ce dont vous avez besoin pour recruter plus vite et mieux</p>
-  
-  <div class="tools-grid">
-    <div class="tool-card">
-      <div class="tool-icon">📄</div>
-      <h3>Dossier de Compétences</h3>
-      <p>Générez automatiquement des dossiers de compétences professionnels à partir de CV. Extraction intelligente des compétences, expériences et formations.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">⭐</div>
-      <h3>Scoring CV Automatique</h3>
-      <p>Analysez et scorez des dizaines de CV en quelques secondes. Identifiez les meilleurs profils selon vos critères.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">🔍</div>
-      <h3>Guide de Sourcing</h3>
-      <p>Trouvez les meilleurs candidats grâce à des requêtes optimisées par IA pour LinkedIn, Indeed, et autres plateformes.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">📋</div>
-      <h3>Référence de Mission</h3>
-      <p>Créez des références de mission détaillées automatiquement à partir de vos projets clients.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">🤝</div>
-      <h3>Préparation Meeting Client</h3>
-      <p>Préparez vos rendez-vous clients avec des fiches synthétiques : contexte, objectifs, recommandations.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">💬</div>
-      <h3>Guide Entretien Candidat</h3>
-      <p>Questions personnalisées par profil, grilles d'évaluation, et conseils pour mener des entretiens efficaces.</p>
-    </div>
-    
-    <div class="tool-card">
-      <div class="tool-icon">✅</div>
-      <h3>Préparation Entretien Client</h3>
-      <p>Préparez vos entretiens clients avec analyse de besoins, recommandations stratégiques et pitch personnalisé.</p>
-    </div>
-  </div>
-</section>
-
-<section class="section" id="tarifs">
-  <h2 class="section-title">Tarifs Simples et Transparents</h2>
-  <p class="section-subtitle">Choisissez la formule adaptée à votre cabinet</p>
-  
-  <div class="pricing-grid">
-    <div class="price-card">
-      <h3 class="price-title">Outil à la Carte</h3>
-      <div class="price-amount">90€</div>
-      <div class="price-period">Par outil / mois</div>
-      <ul class="price-features">
-        <li>1 outil au choix</li>
-        <li>Support email</li>
-        <li>Mises à jour incluses</li>
-        <li>Sans engagement</li>
-      </ul>
-      <button class="btn btn-secondary" style="width:100%" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Demander une démo</button>
-    </div>
-    
-    <div class="price-card featured">
-      <h3 class="price-title">Toolbox Complète</h3>
-      <div class="price-amount">350€</div>
-      <div class="price-period">Les 7 outils / mois</div>
-      <ul class="price-features">
-        <li>7 outils IA inclus</li>
-        <li>Support prioritaire</li>
-        <li>Formations incluses</li>
-        <li>Économie de 280€/mois</li>
-      </ul>
-      <button class="btn btn-primary" style="width:100%" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Essai gratuit 1 semaine</button>
-    </div>
-  </div>
-</section>
-
-<section class="section" id="demo">
-  <h2 class="section-title">Demandez Votre Démo Gratuite</h2>
-  <p class="section-subtitle">Découvrez comment TerrasyncAutomation peut transformer votre cabinet</p>
-  
-  <div style="max-width:600px;margin:0 auto;background:rgba(26,31,46,0.5);padding:3rem;border-radius:20px;border:1px solid rgba(255,255,255,0.1)">
-    <form id="demoForm">
-      <div class="form-group">
-        <input type="text" id="prenom" placeholder="Prénom *" required>
-      </div>
-      <div class="form-group">
-        <input type="text" id="nom" placeholder="Nom *" required>
-      </div>
-      <div class="form-group">
-        <input type="email" id="email" placeholder="Email professionnel *" required>
-      </div>
-      <div class="form-group">
-        <input type="tel" id="phone" placeholder="Téléphone *" required>
-      </div>
-      <div class="form-group">
-        <input type="text" id="company" placeholder="Entreprise *" required>
-      </div>
-      <button type="submit" class="btn btn-primary" style="width:100%">Demander ma démo gratuite</button>
-    </form>
-  </div>
-</section>
-
-<footer>
-  <p>&copy; 2026 TerrasyncAutomation. Tous droits réservés.</p>
-  <p style="margin-top:12px">📧 <a href="mailto:projet.terrassements@gmail.com">projet.terrassements@gmail.com</a></p>
-</footer>
-
-<div id="toast" class="toast"></div>
-
-<script>
-emailjs.init('nXgRFNwIGGTDQngAV');
-
-document.getElementById('demoForm').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const btn = e.target.querySelector('button');
-  btn.textContent = '⏳ Envoi...';
-  btn.disabled = true;
-  
-  try {
-    await emailjs.send('service_divh35q', 'template_i2xb98i', {
-      prenom: document.getElementById('prenom').value,
-      nom: document.getElementById('nom').value,
-      from_email: document.getElementById('email').value,
-      phone: document.getElementById('phone').value,
-      company: document.getElementById('company').value,
-      to_email: 'projet.terrassements@gmail.com'
-    });
-    showToast('✅ Demande envoyée !', 'success');
-    e.target.reset();
-  } catch {
-    showToast('❌ Erreur', 'error');
-  } finally {
-    btn.textContent = 'Demander ma démo gratuite';
-    btn.disabled = false;
-  }
-});
-
-function showToast(msg, type){
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = 'toast show ' + type;
-  setTimeout(() => toast.className = 'toast', 4000);
-}
-
-document.querySelectorAll('a[href^="#"]').forEach(a => {
-  a.addEventListener('click', function(e) {
-    e.preventDefault();
-    document.querySelector(this.getAttribute('href')).scrollIntoView({behavior: 'smooth'});
-  });
-});
-</script>
+</div>
 
 </body>
 </html>
