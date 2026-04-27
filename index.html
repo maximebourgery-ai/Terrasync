@@ -244,6 +244,370 @@ nav a:hover { color: #fff; }
   .hero { padding: 100px 1rem 40px; }
   .cta-row { flex-direction: column; align-items: center; }
 }
+
+/* ── ÉCRANS 3D — SCÈNE ─────────────────────────────── */
+.screens-stage {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto 20px;
+  height: 440px;
+}
+
+/* Wrappers : gèrent le positionnement + animation float (Y uniquement) */
+.screen-wrap {
+  position: absolute;
+  top: 20px;
+}
+.wrap-left  { left: 50%; animation: floatA 7s ease-in-out infinite; }
+.wrap-right { left: 50%; animation: floatB 7s ease-in-out infinite; animation-delay: -3.5s; }
+
+@keyframes floatA {
+  0%, 100% { transform: translateX(-106%) translateY(0); }
+  50%       { transform: translateX(-106%) translateY(-20px); }
+}
+@keyframes floatB {
+  0%, 100% { transform: translateX(6%) translateY(0); }
+  50%       { transform: translateX(6%) translateY(-14px); }
+}
+
+/* Écran générique */
+.mock-screen {
+  width: 500px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 40px 100px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05);
+  will-change: transform;
+  transition: transform .08s ease-out; /* fluidité parallaxe */
+}
+
+/* Barre chrome (macOS dots) */
+.mock-chrome {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.mock-dots { display: flex; gap: 5px; }
+.mock-dots span {
+  width: 10px; height: 10px; border-radius: 50%; display: block;
+}
+.mock-dots .d-r { background: #ff6058; }
+.mock-dots .d-y { background: #ffbd2e; }
+.mock-dots .d-g { background: #28c940; }
+.mock-url {
+  flex: 1; text-align: center;
+  font-family: var(--mfnt); font-size: 10px;
+  padding: 3px 10px; border-radius: 4px;
+}
+
+/* ── ÉCRAN VIOLET (app.html) ───────────────────────── */
+.screen-purple { background: #0d1020; }
+.screen-purple .mock-chrome { background: #111327; }
+.screen-purple .mock-url    { background: rgba(108,99,255,.12); color: rgba(180,170,255,.55); }
+
+/* Init de la rotation 3D (modifiée par JS pour le parallaxe) */
+.screen-purple { transform: perspective(1200px) rotateY(20deg) rotateX(4deg); }
+.screen-green  { transform: perspective(1200px) rotateY(-20deg) rotateX(4deg); }
+
+/* Sidebar + corps */
+.mock-app-body { display: flex; height: 350px; }
+.mock-sidebar {
+  width: 148px; background: #111327;
+  border-right: 1px solid rgba(108,99,255,.14);
+  padding: 14px 10px; display: flex; flex-direction: column; gap: 4px;
+  flex-shrink: 0;
+}
+.mock-sb-logo {
+  font-family: var(--cfnt); font-size: 15px; font-weight: 800;
+  color: #8b83ff; padding: 6px 8px; margin-bottom: 10px;
+}
+.mock-sb-item {
+  padding: 7px 9px; border-radius: 7px;
+  font-size: 10px; color: rgba(180,170,255,.45);
+  display: flex; align-items: center; gap: 6px;
+}
+.mock-sb-item.active { background: rgba(108,99,255,.20); color: #c0b8ff; }
+.mock-sb-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .7; flex-shrink: 0; }
+
+.mock-main { flex: 1; padding: 14px; overflow: hidden; }
+.mock-main-h {
+  font-family: var(--cfnt); font-size: 12px; font-weight: 700;
+  color: #b0a8ff; margin-bottom: 10px; letter-spacing: .3px;
+}
+.mock-input-bar {
+  height: 28px; border-radius: 6px;
+  background: rgba(108,99,255,.10);
+  border: 1px solid rgba(108,99,255,.20);
+  margin-bottom: 10px;
+}
+.mock-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 10px; }
+.mock-mini-card {
+  padding: 9px 10px; border-radius: 8px;
+  background: rgba(108,99,255,.12);
+  border: 1px solid rgba(108,99,255,.20);
+}
+.mock-mini-card b {
+  display: block; font-family: var(--cfnt); font-size: 17px; font-weight: 700; color: #c0b8ff;
+}
+.mock-mini-card span { font-size: 9px; color: rgba(180,170,255,.5); }
+.mock-output {
+  background: rgba(108,99,255,.06);
+  border: 1px solid rgba(108,99,255,.12);
+  border-radius: 8px; padding: 9px; height: 68px;
+}
+.mock-line { height: 5px; border-radius: 3px; background: rgba(108,99,255,.18); margin-bottom: 5px; }
+.mock-line:nth-child(2) { width: 72%; }
+.mock-line:nth-child(3) { width: 50%; }
+
+/* ── ÉCRAN VERT (admin-platform.html) ──────────────── */
+.screen-green { background: #f4f6f3; }
+.screen-green .mock-chrome { background: #eef4eb; border-bottom-color: rgba(78,122,54,.12); }
+.screen-green .mock-url    { background: rgba(78,122,54,.10); color: rgba(58,90,40,.45); }
+
+.mock-admin-body { padding: 14px; height: 350px; overflow: hidden; }
+.mock-admin-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.mock-admin-title {
+  font-family: var(--cfnt); font-size: 13px; font-weight: 800; color: #0f1f0a;
+}
+.mock-admin-badge {
+  background: #4e7a36; color: #fff;
+  font-size: 8px; font-weight: 700; letter-spacing: .8px;
+  padding: 3px 8px; border-radius: 20px;
+}
+.mock-stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 12px; }
+.mock-stat-card {
+  background: #fff; border: 1px solid #d4e4cc; border-radius: 8px;
+  padding: 8px; text-align: center;
+}
+.mock-stat-card b {
+  display: block; font-family: var(--cfnt); font-size: 17px; font-weight: 800; color: #3a5a28;
+}
+.mock-stat-card span { font-size: 8px; color: #5a6e52; }
+.mock-row {
+  display: flex; align-items: center; gap: 7px;
+  background: #fff; border: 1px solid #d4e4cc; border-radius: 6px;
+  padding: 7px 9px; margin-bottom: 5px;
+}
+.mock-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.mock-dot.dg { background: #4e7a36; }
+.mock-dot.db { background: #4a8fd8; }
+.mock-dot.do { background: #e08a3f; }
+.mock-row-line { height: 5px; border-radius: 3px; background: #d4e4cc; flex: 1; }
+.mock-row-tag {
+  font-size: 7px; background: #eef4eb; color: #3a5a28;
+  padding: 2px 6px; border-radius: 4px; border: 1px solid #d4e4cc;
+}
+
+/* ── STATS ─────────────────────────────────────────── */
+.stats-row {
+  display: flex; justify-content: center; gap: 3.5rem; flex-wrap: wrap;
+  max-width: 700px; margin: 40px auto 0;
+  padding: 0 2rem;
+}
+.stat { text-align: center; }
+.stat-val {
+  display: block;
+  font-family: var(--cfnt);
+  font-size: clamp(38px, 6vw, 54px);
+  font-weight: 900; line-height: 1.1;
+  color: var(--blue);
+}
+.stat-lbl { color: var(--muted); font-size: 13px; font-weight: 500; }
+
+@media (max-width: 640px) { .stats-row { gap: 2rem; } }
+
+/* ── SECTIONS PARTAGÉES ────────────────────────────── */
+.section { padding: 90px 2rem; max-width: 1200px; margin: 0 auto; }
+.section-header { text-align: center; margin-bottom: 56px; }
+.section-tag {
+  display: inline-block;
+  font-family: var(--mfnt); font-size: 11px;
+  color: var(--blue); text-transform: uppercase; letter-spacing: 2px;
+  background: var(--blue-dim); padding: 4px 12px; border-radius: 4px;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-family: var(--cfnt);
+  font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -.5px;
+  margin-bottom: 12px;
+}
+.section-sub {
+  color: var(--muted); font-size: 17px; line-height: 1.7;
+  max-width: 580px; margin: 0 auto;
+}
+
+/* ── OUTILS ────────────────────────────────────────── */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.4rem;
+}
+.tool-card {
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px; padding: 1.75rem;
+  transition: transform .3s, border-color .3s, box-shadow .3s;
+}
+.tool-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(74,143,216,.38);
+  box-shadow: 0 20px 50px rgba(74,143,216,.12), 0 0 0 1px rgba(74,143,216,.10);
+}
+.tool-icon-wrap {
+  width: 50px; height: 50px; border-radius: 12px;
+  background: var(--blue-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; margin-bottom: 1rem;
+  transition: background .3s;
+}
+.tool-card:hover .tool-icon-wrap { background: rgba(74,143,216,.22); }
+.tool-card h3 {
+  font-family: var(--cfnt);
+  font-size: 19px; font-weight: 700; letter-spacing: .1px;
+  margin-bottom: .65rem; color: #fff;
+}
+.tool-card p { color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+@media (max-width: 640px) { .section { padding: 64px 1rem; } }
+
+/* ── TARIFS ────────────────────────────────────────── */
+.pricing-grid {
+  display: grid; grid-template-columns: repeat(2,1fr);
+  gap: 2rem; max-width: 840px; margin: 0 auto;
+}
+.price-card {
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px; padding: 2.5rem; text-align: center;
+  transition: transform .3s, box-shadow .3s;
+  position: relative;
+}
+/* Carte standard : teinte violette */
+.price-card.standard {
+  border-color: rgba(108,99,255,.22);
+  background: var(--purple-dim);
+}
+/* Carte featured : teinte bleue */
+.price-card.featured {
+  border-color: rgba(74,143,216,.35);
+  background: rgba(74,143,216,.07);
+  box-shadow: 0 0 0 1px rgba(74,143,216,.18), 0 24px 60px rgba(74,143,216,.14);
+}
+.price-card:hover { transform: translateY(-4px); }
+
+.price-badge {
+  display: inline-block;
+  background: var(--blue); color: #fff;
+  padding: 5px 14px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  margin-bottom: 18px;
+}
+.price-title {
+  font-family: var(--cfnt); font-size: 24px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.price-amount {
+  font-family: var(--cfnt); font-size: 54px; font-weight: 900;
+  color: var(--blue); line-height: 1; margin-bottom: 6px;
+}
+.price-period { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.price-features {
+  list-style: none; text-align: left; margin-bottom: 28px;
+}
+.price-features li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  color: var(--muted); font-size: 14px;
+}
+.price-features li::before { content: '✓'; color: var(--blue); font-weight: 700; flex-shrink: 0; }
+
+@media (max-width: 640px) { .pricing-grid { grid-template-columns: 1fr; } }
+
+/* ── FORMULAIRE DÉMO ───────────────────────────────── */
+.demo-panel {
+  max-width: 560px; margin: 0 auto;
+  background: rgba(255,255,255,.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px; padding: 3rem;
+}
+.form-group { margin-bottom: 14px; }
+.form-group input {
+  width: 100%; padding: .85rem 1.15rem;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: var(--r); color: #fff;
+  font-family: var(--bfnt); font-size: 15px;
+  transition: border-color .25s, background .25s;
+}
+.form-group input::placeholder { color: var(--muted); }
+.form-group input:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: rgba(74,143,216,.08);
+}
+
+/* ── FOOTER ────────────────────────────────────────── */
+footer {
+  background: rgba(15,20,25,.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  padding: 2.5rem 2rem; text-align: center;
+  margin-top: 60px;
+}
+footer p { color: var(--muted); font-size: 14px; margin: 4px 0; }
+footer a { color: var(--blue); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── TOAST ─────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 28px; right: 28px; z-index: 200;
+  padding: .85rem 1.75rem; border-radius: var(--r2);
+  background: rgba(18,22,36,.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #fff; font-size: 15px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  display: none;
+}
+.toast.show    { display: block; animation: toastIn .3s ease; }
+.toast.success { border-color: #30d158; background: rgba(48,209,88,.12); }
+.toast.error   { border-color: #ff375f; background: rgba(255,55,95,.12); }
+@keyframes toastIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+/* ── RESPONSIVE ÉCRANS ─────────────────────────────── */
+@media (max-width: 900px) {
+  .screens-stage {
+    height: auto; display: flex; flex-direction: column;
+    align-items: center; gap: 1.5rem; margin-bottom: 0;
+  }
+  .screen-wrap {
+    position: relative; top: auto; left: auto !important;
+  }
+  .wrap-left  { animation: floatSimple 7s ease-in-out infinite; }
+  .wrap-right { animation: floatSimple 7s ease-in-out infinite; animation-delay: -3.5s; }
+  @keyframes floatSimple {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-12px); }
+  }
+  .mock-screen {
+    width: min(500px, 90vw);
+    transform: none !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -287,10 +651,275 @@ nav a:hover { color: #fff; }
       <a href="/outils.html" class="btn btn-glass">Découvrir les outils</a>
     </div>
   </div>
-  <!-- Écrans 3D + Stats à venir -->
+  <!-- ÉCRANS 3D -->
+  <div class="screens-stage" id="screensStage">
+
+    <!-- Écran gauche : espace client (violet) -->
+    <div class="screen-wrap wrap-left">
+      <div class="mock-screen screen-purple" id="screenLeft">
+        <div class="mock-chrome">
+          <div class="mock-dots">
+            <span class="d-r"></span><span class="d-y"></span><span class="d-g"></span>
+          </div>
+          <div class="mock-url">app.terrasyncautomation.fr</div>
+        </div>
+        <div class="mock-app-body">
+          <div class="mock-sidebar">
+            <div class="mock-sb-logo">TA</div>
+            <div class="mock-sb-item active"><span class="mock-sb-dot"></span>Dossier CV</div>
+            <div class="mock-sb-item"><span class="mock-sb-dot"></span>Scoring</div>
+            <div class="mock-sb-item"><span class="mock-sb-dot"></span>Sourcing</div>
+            <div class="mock-sb-item"><span class="mock-sb-dot"></span>Référence</div>
+            <div class="mock-sb-item"><span class="mock-sb-dot"></span>Meeting</div>
+            <div class="mock-sb-item"><span class="mock-sb-dot"></span>Entretien</div>
+          </div>
+          <div class="mock-main">
+            <div class="mock-main-h">Dossier de Compétences</div>
+            <div class="mock-input-bar"></div>
+            <div class="mock-mini-grid">
+              <div class="mock-mini-card"><b>7</b><span>outils actifs</span></div>
+              <div class="mock-mini-card"><b>30s</b><span>par dossier</span></div>
+            </div>
+            <div class="mock-output">
+              <div class="mock-line"></div>
+              <div class="mock-line"></div>
+              <div class="mock-line"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Écran droit : espace admin (vert) -->
+    <div class="screen-wrap wrap-right">
+      <div class="mock-screen screen-green" id="screenRight">
+        <div class="mock-chrome">
+          <div class="mock-dots">
+            <span class="d-r"></span><span class="d-y"></span><span class="d-g"></span>
+          </div>
+          <div class="mock-url">admin.terrasyncautomation.fr</div>
+        </div>
+        <div class="mock-admin-body">
+          <div class="mock-admin-top">
+            <div class="mock-admin-title">Dashboard Admin</div>
+            <div class="mock-admin-badge">ADMIN</div>
+          </div>
+          <div class="mock-stat-row">
+            <div class="mock-stat-card"><b>24</b><span>Clients</span></div>
+            <div class="mock-stat-card"><b>7</b><span>Outils</span></div>
+            <div class="mock-stat-card"><b>-70%</b><span>Coût</span></div>
+          </div>
+          <div class="mock-row"><div class="mock-dot dg"></div><div class="mock-row-line"></div><div class="mock-row-tag">Actif</div></div>
+          <div class="mock-row"><div class="mock-dot db"></div><div class="mock-row-line" style="width:60%"></div><div class="mock-row-tag">Essai</div></div>
+          <div class="mock-row"><div class="mock-dot do"></div><div class="mock-row-line" style="width:40%"></div><div class="mock-row-tag">Inactif</div></div>
+          <div class="mock-row"><div class="mock-dot dg"></div><div class="mock-row-line" style="width:85%"></div><div class="mock-row-tag">Actif</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /screens-stage -->
+  <!-- BANDE STATS -->
+  <div class="stats-row">
+    <div class="stat">
+      <span class="stat-val">-70%</span>
+      <span class="stat-lbl">vs concurrence</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">30s</span>
+      <span class="stat-lbl">au lieu de 30 min</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val">7</span>
+      <span class="stat-lbl">outils IA inclus</span>
+    </div>
+  </div>
 </section>
 
-</div>
+<!-- SECTION OUTILS -->
+<section class="section">
+  <div class="section-header">
+    <div class="section-tag">Nos outils</div>
+    <h2 class="section-title">7 Outils IA pour Automatiser Votre Cabinet</h2>
+    <p class="section-sub">Tout ce dont vous avez besoin pour recruter plus vite et mieux</p>
+  </div>
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-icon-wrap">📄</div>
+      <h3>Dossier de Compétences</h3>
+      <p>Générez automatiquement des dossiers de compétences professionnels à partir de CV. Extraction intelligente des compétences, expériences et formations.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">⭐</div>
+      <h3>Scoring CV Automatique</h3>
+      <p>Analysez et scorez des dizaines de CV en quelques secondes. Identifiez les meilleurs profils selon vos critères.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">🔍</div>
+      <h3>Guide de Sourcing</h3>
+      <p>Trouvez les meilleurs candidats grâce à des requêtes optimisées par IA pour LinkedIn, Indeed, et autres plateformes.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">📋</div>
+      <h3>Référence de Mission</h3>
+      <p>Créez des références de mission détaillées automatiquement à partir de vos projets clients.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">🤝</div>
+      <h3>Préparation Meeting Client</h3>
+      <p>Préparez vos rendez-vous clients avec des fiches synthétiques : contexte, objectifs, recommandations.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">💬</div>
+      <h3>Guide Entretien Candidat</h3>
+      <p>Questions personnalisées par profil, grilles d'évaluation, et conseils pour mener des entretiens efficaces.</p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon-wrap">✅</div>
+      <h3>Préparation Entretien Client</h3>
+      <p>Préparez vos entretiens clients avec analyse de besoins, recommandations stratégiques et pitch personnalisé.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION DÉMO -->
+<section class="section" id="demo">
+  <div class="section-header">
+    <div class="section-tag">Contact</div>
+    <h2 class="section-title">Demandez Votre Démo Gratuite</h2>
+    <p class="section-sub">Découvrez comment TerrasyncAutomation peut transformer votre cabinet</p>
+  </div>
+  <div class="demo-panel">
+    <form id="demoForm">
+      <div class="form-group"><input type="text"  id="prenom"  placeholder="Prénom *"               required></div>
+      <div class="form-group"><input type="text"  id="nom"     placeholder="Nom *"                  required></div>
+      <div class="form-group"><input type="email" id="email"   placeholder="Email professionnel *"  required></div>
+      <div class="form-group"><input type="tel"   id="phone"   placeholder="Téléphone *"            required></div>
+      <div class="form-group"><input type="text"  id="company" placeholder="Entreprise *"           required></div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Demander ma démo gratuite</button>
+    </form>
+  </div>
+</section>
+
+<!-- SECTION TARIFS -->
+<section class="section" id="tarifs">
+  <div class="section-header">
+    <div class="section-tag">Tarifs</div>
+    <h2 class="section-title">Tarifs Simples et Transparents</h2>
+    <p class="section-sub">Choisissez la formule adaptée à votre cabinet</p>
+  </div>
+  <div class="pricing-grid">
+    <div class="price-card standard">
+      <h3 class="price-title">Outil à la Carte</h3>
+      <div class="price-amount">90€</div>
+      <div class="price-period">Par outil / mois</div>
+      <ul class="price-features">
+        <li>1 outil au choix</li>
+        <li>Support email</li>
+        <li>Mises à jour incluses</li>
+        <li>Sans engagement</li>
+      </ul>
+      <button class="btn btn-glass" style="width:100%" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Demander une démo</button>
+    </div>
+    <div class="price-card featured">
+      <div class="price-badge">RECOMMANDÉ</div>
+      <h3 class="price-title">Toolbox Complète</h3>
+      <div class="price-amount">350€</div>
+      <div class="price-period">Les 7 outils / mois</div>
+      <ul class="price-features">
+        <li>7 outils IA inclus</li>
+        <li>Support prioritaire</li>
+        <li>Formations incluses</li>
+        <li>Économie de 280€/mois</li>
+      </ul>
+      <button class="btn btn-primary" style="width:100%" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'})">Essai gratuit 1 semaine</button>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>&copy; 2026 TerrasyncAutomation. Tous droits réservés.</p>
+  <p style="margin-top:10px">📧 <a href="mailto:projet.terrassements@gmail.com">projet.terrassements@gmail.com</a></p>
+</footer>
+
+</div><!-- /page -->
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<script>
+/* ── EmailJS ── */
+emailjs.init('nXgRFNwIGGTDQngAV');
+
+document.getElementById('demoForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.textContent = '⏳ Envoi...';
+  btn.disabled = true;
+  try {
+    await emailjs.send('service_divh35q', 'template_i2xb98i', {
+      prenom:     document.getElementById('prenom').value,
+      nom:        document.getElementById('nom').value,
+      from_email: document.getElementById('email').value,
+      phone:      document.getElementById('phone').value,
+      company:    document.getElementById('company').value,
+      to_email:   'projet.terrassements@gmail.com'
+    });
+    showToast('✅ Demande envoyée !', 'success');
+    e.target.reset();
+  } catch {
+    showToast('❌ Erreur, réessayez.', 'error');
+  } finally {
+    btn.textContent = 'Demander ma démo gratuite';
+    btn.disabled = false;
+  }
+});
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => { t.className = 'toast'; }, 4000);
+}
+
+/* ── Header scroll opacity ── */
+const header = document.getElementById('header');
+window.addEventListener('scroll', () => {
+  header.classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+
+/* ── Smooth scroll sur liens ancre ── */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', function(e) {
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+
+/* ── Parallaxe souris sur les écrans 3D ── */
+(function() {
+  const sl = document.getElementById('screenLeft');
+  const sr = document.getElementById('screenRight');
+  if (!sl || !sr) return;
+
+  /* Vérifier qu'on n'est pas en mobile (les transforms sont neutralisés) */
+  let active = window.innerWidth > 900;
+  window.addEventListener('resize', () => { active = window.innerWidth > 900; }, { passive: true });
+
+  let raf = null;
+  document.addEventListener('mousemove', e => {
+    if (!active) return;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const dx = (e.clientX / window.innerWidth  - 0.5) * 2; /* -1 → +1 */
+      const dy = (e.clientY / window.innerHeight - 0.5) * 2;
+      const maxRot = 5;
+      sl.style.transform = `perspective(1200px) rotateY(${20 + dx * maxRot}deg) rotateX(${4 - dy * 2}deg)`;
+      sr.style.transform = `perspective(1200px) rotateY(${-20 + dx * maxRot}deg) rotateX(${4 - dy * 2}deg)`;
+    });
+  }, { passive: true });
+})();
+</script>
 
 </body>
 </html>
