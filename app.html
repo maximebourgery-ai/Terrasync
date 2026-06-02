@@ -5043,6 +5043,7 @@ function renderPortalApp(){
   updateCreditDisplay();
 }
 function _doRenderPortalApp(c){
+  if(!portalMe)return;
   if(!c){c=S.clients.find(function(x){return x.id===portalCid});if(!c)return;}
   if(S.creditCosts && Object.keys(S.creditCosts).length){
     Object.assign(CREDIT_COSTS, S.creditCosts);
@@ -6239,7 +6240,7 @@ function jbPull(cb) {
       localStorage.setItem('terr_real_costs', JSON.stringify(S.creditCostsReal));
     }
     // Si les prix ont changé et qu'on est dans le portail → re-render les cards
-    if(_pricesChanged && portalCid && typeof renderPortalApp==='function'){
+    if(_pricesChanged && portalCid && portalMe && typeof renderPortalApp==='function'){
       setTimeout(renderPortalApp, 100);
     }
     // Restaurer htmlContent depuis le cache mémoire si disponible
