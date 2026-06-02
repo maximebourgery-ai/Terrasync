@@ -4284,13 +4284,20 @@ async function generateDeployLink(){
 function portalShowConnecting(cid){
   var box=document.querySelector('#p-login .p-box');
   if(!box)return;
-  box.innerHTML=
-    '<div style="text-align:center;padding:20px 0">'
-    +'<div id="portal-conn-spinner" style="width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px"></div>'
+  // Overlay au-dessus du contenu existant (ne détruit pas pfl/pfr/pff)
+  var existing=document.getElementById('portal-conn-overlay');
+  if(existing)existing.remove();
+  var overlay=document.createElement('div');
+  overlay.id='portal-conn-overlay';
+  overlay.style.cssText='position:absolute;inset:0;background:var(--card,#1a2332);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:inherit;z-index:10;padding:20px 0';
+  overlay.innerHTML=
+    '<div id="portal-conn-spinner" style="width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px"></div>'
     +'<div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:6px" id="portal-conn-title">Connexion en cours...</div>'
     +'<div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:20px" id="portal-conn-sub">Chargement depuis le cloud</div>'
-    +'<button data-cid="'+cid+'" onclick="portalRetryConnect(this.dataset.cid)" id="portal-retry-btn" style="display:none;background:var(--green);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">Reessayer</button>'
-    +'</div>';
+    +'<button data-cid="'+cid+'" onclick="portalRetryConnect(this.dataset.cid)" id="portal-retry-btn" style="display:none;background:var(--green);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">Reessayer</button>';
+  // p-box doit être position:relative pour que l'overlay fonctionne
+  box.style.position='relative';
+  box.appendChild(overlay);
   _portalConnectFetch(cid);
 }
 
@@ -4344,6 +4351,7 @@ function _portalInitAfterLoad(cid,c){
         window.history.replaceState({}, '', currentUrl.toString());
       }
 
+      var _ov=document.getElementById('portal-conn-overlay');if(_ov)_ov.remove();
       $('p-login').style.display='none';
       showPortalApp();
       // Charger l'index des outils stockés (pour handleToolClick)
@@ -4378,8 +4386,7 @@ function portalShowOffline(cid, reason){
 
 function portalRetryConnect(cid){
   // Reset UI and retry
-  var box=document.querySelector('#p-login .p-box');
-  if(box)box.innerHTML='';
+  var ov=document.getElementById('portal-conn-overlay');if(ov)ov.remove();
   // Force re-pull JSONBin (clear cached bin to force rediscovery)
   portalShowConnecting(cid);
 }
@@ -4500,6 +4507,9 @@ function stylePortalLeft(c){
 
 // PORTAL TABS
 function showPortalTab(t){
+  // Retirer l'overlay de connexion s'il est présent
+  var ov=document.getElementById('portal-conn-overlay');
+  if(ov)ov.remove();
   ['ptl','ptr','ptf'].forEach(function(id){
     var el=document.getElementById(id);
     if(el)el.className='p-tab'+(id==='pt'+t?' on':'');
