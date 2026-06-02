@@ -5531,18 +5531,49 @@ function reclassifyFiles(){
   var tools=S.tools||[];
   if(!tools.length){toast('⚠️ Aucun outil disponible pour classer les fichiers',false);return;}
 
-  toast('🤖 Claude analyse les fichiers… ('+unclassified.length+' fichiers)');
-
   var toolsList=tools.map(function(t){return {id:t.id,name:t.name,icon:t.icon||'🌐'};});
   var BATCH=20;
   var batches=[];
   for(var bi=0;bi<unclassified.length;bi+=BATCH){ batches.push(unclassified.slice(bi,bi+BATCH)); }
+  var total=batches.length;
+
+  // Barre de progression
+  var old=document.getElementById('_reclassify-progress');
+  if(old)old.remove();
+  var prog=document.createElement('div');
+  prog.id='_reclassify-progress';
+  prog.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:19000;background:#131726;border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:16px 20px;min-width:300px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  prog.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<span style="font-family:var(--cfnt);font-size:13px;font-weight:900;color:#fff">🤖 Classification IA</span>'
+    +'<span id="_reclassify-eta" style="font-size:11px;color:rgba(255,255,255,.4)">calcul…</span>'
+    +'</div>'
+    +'<div style="background:rgba(255,255,255,.08);border-radius:8px;height:8px;overflow:hidden">'
+    +'<div id="_reclassify-bar" style="height:100%;border-radius:8px;background:linear-gradient(90deg,#4ade80,#22d3ee);width:0%;transition:width .4s ease"></div>'
+    +'</div>'
+    +'<div id="_reclassify-label" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:8px;text-align:center">Lot 0 / '+total+' — '+unclassified.length+' fichiers</div>';
+  document.body.appendChild(prog);
+
+  function updateProgress(idx, elapsed){
+    var pct=Math.round((idx/total)*100);
+    var bar=document.getElementById('_reclassify-bar');
+    var eta=document.getElementById('_reclassify-eta');
+    var lbl=document.getElementById('_reclassify-label');
+    if(bar) bar.style.width=pct+'%';
+    if(lbl) lbl.textContent='Lot '+idx+' / '+total+' — '+Math.min(idx*BATCH,unclassified.length)+' / '+unclassified.length+' fichiers traités';
+    if(eta && idx>0){
+      var avgMs=elapsed/idx;
+      var remaining=Math.ceil((total-idx)*avgMs/1000);
+      eta.textContent=remaining>0?'~'+remaining+'s restante'+(remaining>1?'s':''):'presque fini…';
+    }
+  }
 
   var allAssignments=[];
   var totalFixed=0;
+  var startTime=Date.now();
 
   function processBatch(idx){
-    if(idx>=batches.length){
+    updateProgress(idx, Date.now()-startTime);
+    if(idx>=total){
       allAssignments.forEach(function(a){
         if(!a.tool_id)return;
         var f=files.find(function(x){return x.id===a.file_id;});
@@ -5550,12 +5581,29 @@ function reclassifyFiles(){
         f.toolId=a.tool_id; f.toolName=a.tool_name||''; f.toolIcon=a.tool_icon||'🌐';
         totalFixed++;
       });
-      if(totalFixed>0){
-        portalSaveFiles(portalCid,files); jbPushFiles(portalCid,files);
-        toast('✅ '+totalFixed+' fichier'+(totalFixed>1?'s classés':' classé')+' par IA');
-        setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+      // Supprimer les doublons (même nom + même taille, garder le plus récent)
+      var seen={};
+      var deduped=files.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);}).filter(function(f){
+        var sig=(f.name||'')+'|'+(f.content||'').length;
+        if(seen[sig])return false; seen[sig]=true; return true;
+      });
+      var dupes=files.length-deduped.length;
+      var p=document.getElementById('_reclassify-progress');
+      if(p){
+        var bar=document.getElementById('_reclassify-bar');
+        if(bar){bar.style.width='100%';bar.style.background='#4ade80';}
+        var lbl=document.getElementById('_reclassify-label');
+        if(lbl)lbl.textContent='✅ Terminé !';
+        setTimeout(function(){if(p&&p.parentNode)p.parentNode.removeChild(p);},1500);
+      }
+      if(totalFixed>0||dupes>0){
+        portalSaveFiles(portalCid,deduped); jbPushFiles(portalCid,deduped);
+        var msg='✅ '+totalFixed+' fichier'+(totalFixed>1?'s classés':' classé');
+        if(dupes>0) msg+=' · '+dupes+' doublon'+(dupes>1?'s supprimés':' supprimé');
+        toast(msg);
+        setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},400);
       } else {
-        toast('⚠️ L\'IA n\'a trouvé aucune correspondance avec les outils existants',false);
+        toast('⚠️ Aucune correspondance trouvée avec les outils existants',false);
       }
       return;
     }
