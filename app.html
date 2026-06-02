@@ -5531,59 +5531,80 @@ function reclassifyFiles(){
   var tools=S.tools||[];
   if(!tools.length){toast('⚠️ Aucun outil disponible pour classer les fichiers',false);return;}
 
-  toast('🤖 Claude analyse les fichiers…');
+  toast('🤖 Claude analyse les fichiers… ('+unclassified.length+' fichiers)');
 
   var toolsList=tools.map(function(t){return {id:t.id,name:t.name,icon:t.icon||'🌐'};});
-  var filesList=unclassified.map(function(f){return {id:f.id,name:f.name};});
+  var BATCH=20; // max fichiers par appel API
+  var batches=[];
+  for(var bi=0;bi<unclassified.length;bi+=BATCH){
+    batches.push(unclassified.slice(bi,bi+BATCH));
+  }
 
-  var prompt='Tu es un assistant de classement de fichiers. Voici la liste des outils disponibles :\n'+
-    JSON.stringify(toolsList,null,2)+'\n\n'+
-    'Voici les fichiers à classer :\n'+
-    JSON.stringify(filesList,null,2)+'\n\n'+
-    'Pour chaque fichier, détermine quel outil l\'a probablement généré en te basant sur le nom du fichier. '+
-    'Utilise ton raisonnement : préfixes, mots-clés, acronymes, type de document, etc. '+
-    'Si aucun outil ne correspond, laisse tool_id vide.\n\n'+
-    'Réponds UNIQUEMENT avec un JSON valide, sans markdown, sous cette forme exacte :\n'+
-    '[{"file_id":"...","tool_id":"...","tool_name":"...","tool_icon":"..."},...]';
+  var allAssignments=[];
+  var totalFixed=0;
 
-  fetch('/api/anthropic',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:1000,
-      messages:[{role:'user',content:prompt}]
-    })
-  })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('').trim();
-    var assignments;
-    try{
-      var jsonMatch=text.match(/\[[\s\S]*\]/);
-      assignments=JSON.parse(jsonMatch?jsonMatch[0]:text);
-    }catch(e){toast('⚠️ Erreur de parsing de la réponse IA',false);return;}
-
-    var fixed=0;
-    assignments.forEach(function(a){
-      if(!a.tool_id)return;
-      var f=files.find(function(x){return x.id===a.file_id;});
-      if(!f)return;
-      f.toolId=a.tool_id;
-      f.toolName=a.tool_name||'';
-      f.toolIcon=a.tool_icon||'🌐';
-      fixed++;
-    });
-    if(fixed>0){
-      portalSaveFiles(portalCid,files);
-      jbPushFiles(portalCid,files);
-      toast('✅ '+fixed+' fichier'+(fixed>1?'s classés':' classé')+' par IA');
-      setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
-    } else {
-      toast('⚠️ L\'IA n\'a trouvé aucune correspondance avec les outils existants',false);
+  function processBatch(idx){
+    if(idx>=batches.length){
+      // Tous les lots traités — appliquer les résultats
+      allAssignments.forEach(function(a){
+        if(!a.tool_id)return;
+        var f=files.find(function(x){return x.id===a.file_id;});
+        if(!f)return;
+        f.toolId=a.tool_id;
+        f.toolName=a.tool_name||'';
+        f.toolIcon=a.tool_icon||'🌐';
+        totalFixed++;
+      });
+      if(totalFixed>0){
+        portalSaveFiles(portalCid,files);
+        jbPushFiles(portalCid,files);
+        toast('✅ '+totalFixed+' fichier'+(totalFixed>1?'s classés':' classé')+' par IA');
+        setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+      } else {
+        toast('⚠️ L\'IA n\'a trouvé aucune correspondance avec les outils existants',false);
+      }
+      return;
     }
-  })
-  .catch(function(){toast('⚠️ Erreur lors de la classification IA',false);});
+
+    var batch=batches[idx];
+    var filesList=batch.map(function(f){return {id:f.id,name:f.name};});
+    var prompt='Outils disponibles:\n'+JSON.stringify(toolsList)+'\n\n'+
+      'Fichiers à classer:\n'+JSON.stringify(filesList)+'\n\n'+
+      'Pour chaque fichier, détermine l\'outil source via préfixes, mots-clés, acronymes. '+
+      'Réponds UNIQUEMENT avec du JSON brut (pas de markdown), tableau de: '+
+      '[{"file_id":"...","tool_id":"...","tool_name":"...","tool_icon":"..."}]. '+
+      'Si aucun outil ne correspond, mets tool_id:"".';
+
+    fetch('/api/anthropic',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:2000,
+        messages:[{role:'user',content:prompt}]
+      })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('').trim();
+      try{
+        // Extraire le JSON même s'il y a du texte autour ou des backticks
+        var cleaned=text.replace(/```json|```/g,'').trim();
+        var jsonMatch=cleaned.match(/\[[\s\S]*\]/);
+        var parsed=JSON.parse(jsonMatch?jsonMatch[0]:cleaned);
+        allAssignments=allAssignments.concat(parsed);
+      }catch(e){
+        console.warn('[RECLASSIFY] Lot '+idx+' parsing error:',e,'\nRéponse:',text);
+      }
+      processBatch(idx+1);
+    })
+    .catch(function(e){
+      console.warn('[RECLASSIFY] Lot '+idx+' erreur réseau:',e);
+      processBatch(idx+1); // continuer malgré l'erreur
+    });
+  }
+
+  processBatch(0);
 }
 function portalDownloadFile(f){
   var cnt = f.content || '';
