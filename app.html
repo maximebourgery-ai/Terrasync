@@ -4581,11 +4581,7 @@ function showForcedPasswordChange(){
     +'</div>'
     +'<label class="p-label">Nouveau mot de passe</label>'
     +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd" type="password" placeholder="Minimum 8 caractères" style="padding-right:44px">'
-    +'<label class="p-label">Nouveau mot de passe</label>'
-    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd" type="password" placeholder="Minimum 8 caractères" style="padding-right:44px">'
     +'<button type="button" onclick="toggleEye(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px">&#128065;</button></div>'
-    +'<label class="p-label">Confirmer le nouveau mot de passe</label>'
-    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd2" type="password" placeholder="Répétez le mot de passe" style="padding-right:44px">'
     +'<label class="p-label">Confirmer le nouveau mot de passe</label>'
     +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd2" type="password" placeholder="Répétez le mot de passe" style="padding-right:44px">'
     +'<button type="button" onclick="toggleEye(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px">&#128065;</button></div>'
@@ -4617,11 +4613,15 @@ function applyForcedPasswordChange(){
   delete u.pwdResetAt;
   portalSaveUsers(portalCid,users);
 
-  // Also update S.users
+  // Also update S.users and persist to workspace
   var su=S.users.find(function(x){return x.id===portalMe.id});
-  if(su){su.pwd=p;su.mustChangePassword=false;delete su.pwdResetBy;delete su.pwdResetAt;persist();}
+  if(su){su.pwd=p;su.mustChangePassword=false;delete su.pwdResetBy;delete su.pwdResetAt;}
+  persist();
 
   portalMe=u;
+
+  // Save session so the next page reload restores access directly
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}));}catch(e){}
 
   // Remove forced overlay
   var overlay=document.getElementById('forced-pwd-change');
@@ -5043,6 +5043,7 @@ function renderPortalApp(){
   updateCreditDisplay();
 }
 function _doRenderPortalApp(c){
+  if(!portalMe)return;
   if(!c){c=S.clients.find(function(x){return x.id===portalCid});if(!c)return;}
   if(S.creditCosts && Object.keys(S.creditCosts).length){
     Object.assign(CREDIT_COSTS, S.creditCosts);
@@ -6239,7 +6240,7 @@ function jbPull(cb) {
       localStorage.setItem('terr_real_costs', JSON.stringify(S.creditCostsReal));
     }
     // Si les prix ont changé et qu'on est dans le portail → re-render les cards
-    if(_pricesChanged && portalCid && typeof renderPortalApp==='function'){
+    if(_pricesChanged && portalCid && portalMe && typeof renderPortalApp==='function'){
       setTimeout(renderPortalApp, 100);
     }
     // Restaurer htmlContent depuis le cache mémoire si disponible
