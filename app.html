@@ -3575,22 +3575,45 @@ function _fsLoadFilesCloud(){
       );
       return;
     }
-    var byTool={};
-    readable.forEach(function(f){var t=f.toolName||'Outil';if(!byTool[t])byTool[t]=0;byTool[t]++;});
-    var summary=Object.keys(byTool).map(function(t){return byTool[t]+'\u00a0'+t;}).join(', ');
-    _fsAddMsg('assistant',
-      'Bonjour\u00a0! J\u2019ai charg\u00e9 **'+readable.length+' fichier(s)** depuis Supabase\u00a0:\n'+summary+'\n\n'+
-      '**Que recherchez-vous ?**\n\n'+
-      '\u2022 Collez une fiche de poste pour trouver des CVs qui matchent\n'+
-      '\u2022 Chercher des credentials avec certaines comp\u00e9tences\n'+
-      '\u2022 Rechercher par mots-cl\u00e9s dans vos documents\n'+
-      '\u2022 Comparer ou analyser plusieurs fichiers'
-    );
+    // Classifier les fichiers pour le message d'accueil
+    var byType={}, byTool={};
+    readable.forEach(function(f){
+      var cls = _fsClassifyFile(f, '');
+      byType[cls.label] = (byType[cls.label]||0)+1;
+      var t=f.toolName||'';
+      if(t&&t!=='Outil'){ byTool[t]=(byTool[t]||0)+1; }
+    });
+    var typeSummary = Object.keys(byType).map(function(k){ return '**'+byType[k]+'** '+k; }).join(' · ');
+    var toolSummary = Object.keys(byTool).slice(0,6).map(function(t){ return byTool[t]+'× '+t; }).join(', ');
+    var _greetClient = S.clients.find(function(x){return x.id===portalCid;});
+    var _greetName = _greetClient ? _greetClient.name : '';
+
+    var greetMsg = 'Bonjour ! Je suis votre assistant de recherche documentaire'
+      + (_greetName ? ' pour **'+_greetName+'**' : '') + '.
+
+'
+      + 'J’ai analysé **'+readable.length+' fichier(s)** :
+' + typeSummary
+      + (toolSummary ? '
+_Sources : '+toolSummary+'_' : '')
+      + '
+
+**Ce que je peux faire :**
+'
+      + '• Collez une fiche de poste → je trouve les CVs/credentials qui matchent
+'
+      + '• Cherchez un profil ("CF fonctionnel SIE") → je croise webapps + CVs + sourcings
+'
+      + '• Recherche par compétences, secteur, ou mots-clés dans le contenu réel
+'
+      + '• Analyse et comparaison de vos documents de sourcing';
+
+    _fsAddMsg('assistant', greetMsg);
     _fsShowSuggestions([
-      'Trouver des CVs pour ce poste',
-      'Chercher par comp\u00e9tences',
-      'Analyser mes credentials',
-      'Comparer mes documents'
+      'Trouver un CF pour ce poste',
+      'Analyser mes sourcings récents',
+      'Chercher par compétences',
+      'Comparer des profils'
     ]);
   });
 }
@@ -3908,6 +3931,140 @@ function _fsSend(){
   _fsCallAPI();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// CLASSIFICATION DE FICHIERS + SYSTEM PROMPT RICHE
+// Construit un prompt contextuel avec profil client, webapps, domaine
+// ═══════════════════════════════════════════════════════════════════
+
+function _fsClassifyFile(f, text){
+  var name = (f.name||'').toLowerCase().replace(/[_\-\.]/g,' ');
+  var tool = (f.toolName||'').toLowerCase();
+  var combined = name + ' ' + tool + ' ' + (text||'').toLowerCase().slice(0,500);
+
+  // Patterns de classification
+  if(/\b(cv|curriculum|resume|candidat|profil candidat|experience pro)\b/.test(combined) ||
+     /taleo.sourcing/i.test(f.name||'') ||
+     /sourcing.*(cv|profil|candidat)/i.test(combined)){
+    return {type:'cv', label:'CV / Profil candidat'};
+  }
+  if(/\b(fiche.?de.?poste|job.?descr|offre.?emploi|appel.?offre|cahier.?des.?charges|cdc)\b/.test(combined)){
+    return {type:'fiche_poste', label:'Fiche de poste / Offre'};
+  }
+  if(/\b(credential|attestation|certif|diplom|habilit|accréditation)\b/.test(combined)){
+    return {type:'credential', label:'Credential / Attestation'};
+  }
+  if(/\b(analyse|bilan|synthèse|rapport|mission|compte.?rendu)\b/.test(combined) ||
+     /^analyse_/i.test(f.name||'')){
+    return {type:'rapport', label:'Rapport / Analyse'};
+  }
+  if(/\bcf\b/.test(combined) || /taleo.*cf/i.test(f.name||'')){
+    return {type:'cf', label:'Document CF (Chargé de Formation)'};
+  }
+  if(/\b(fer|sir|sie|alm|ref|dsi|amoa)\b/.test(combined)){
+    return {type:'secteur_doc', label:'Document sectoriel / Référentiel'};
+  }
+  return {type:'autre', label:'Document divers'};
+}
+
+function _fsBuildSystemPrompt(clientObj, clientTools, files, relevantIdx, fileCtx, fileClassifications){
+  var clientName = (clientObj && clientObj.name) || 'Client';
+  var clientSector = (clientObj && clientObj.sector) || '';
+  var clientNotes = (clientObj && clientObj.notes) || '';
+
+  // Catalogue des webapps du client
+  var toolCatalog = (clientTools||[]).filter(function(t){ return t.status==='deployed'; });
+  var toolLines = toolCatalog.map(function(t){
+    var desc = t.desc ? ' – ' + t.desc : '';
+    var type = t.type==='web'?'[Webapp]':t.type==='masterprompt'?'[IA]':'[Outil]';
+    return '  • ' + type + ' "' + t.name + '"' + desc;
+  });
+
+  // Résumé de classification des fichiers disponibles
+  var typeCount = {};
+  fileClassifications.forEach(function(fc){ typeCount[fc.label] = (typeCount[fc.label]||0)+1; });
+  var typeLines = Object.keys(typeCount).map(function(k){ return '  • '+typeCount[k]+' × '+k; });
+
+  // Mapping webapp → type de contenu produit
+  var webappMappings = [];
+  toolCatalog.forEach(function(t){
+    var tn = (t.name||'').toLowerCase();
+    var filesFromTool = files.filter(function(f){ return (f.toolId===t.id)||(f.toolName===t.name); });
+    if(filesFromTool.length>0){
+      webappMappings.push('  • Webapp "'+t.name+'" → '+filesFromTool.length+' fichier(s) produit(s)');
+    }
+  });
+
+  var lines = [
+    '════════════════════════════════════════════════════════════',
+    'CONTEXTE ENTREPRISE — ' + clientName,
+    '════════════════════════════════════════════════════════════',
+    'Client : ' + clientName,
+    clientSector ? 'Secteur : ' + clientSector : '',
+    clientNotes  ? 'Notes : ' + clientNotes : '',
+    '',
+    'WEBAPPS DÉPLOYÉES POUR CE CLIENT (' + toolCatalog.length + ') :',
+    toolLines.length ? toolLines.join('\n') : '  (aucun outil déployé)',
+    '',
+    webappMappings.length ? 'FICHIERS PAR WEBAPP :\n' + webappMappings.join('\n') : '',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'DOMAINE MÉTIER — CABINET DE CONSEIL / RECRUTEMENT / RH',
+    '════════════════════════════════════════════════════════════',
+    'Ce client opère dans le conseil et/ou le recrutement. Vocabulaire métier :',
+    '  • CF = Chargé(e) de Formation ou Consultant(e) Fonctionnel(le) selon contexte',
+    '  • Credential = Document prouvant une compétence/expérience d\'un consultant',
+    '  • Mission = Prestation/contrat de conseil chez un client final',
+    '  • Sourcing = Recherche et qualification de candidats/consultants',
+    '  • SIE / FER / ALM / DSI / AMOA / MOE = Domaines de compétences ou clients types',
+    '  • Fiche de poste = Description du besoin client à pourvoir',
+    '  • Profil = CV ou credential d\'un consultant/candidat',
+    '',
+    'RÈGLES DE RAISONNEMENT ET CROSS-RÉFÉRENCEMENT :',
+    '1. Si la requête mentionne une webapp (ex: "CF SIE", "Taleo_CF") → chercher AUSSI',
+    '   dans les fichiers produits par cette webapp ET dans les CVs/credentials associés.',
+    '2. Si l\'utilisateur donne une fiche de poste → chercher des CVs et credentials qui matchent',
+    '   les compétences, le secteur, et le niveau d\'expérience demandés.',
+    '3. Si on cherche un consultant pour une mission → croiser CVs + credentials + analyses.',
+    '4. Les noms de fichiers contiennent souvent des codes métier (ex: "CF_SIE_FR" =',
+    '   Consultant Fonctionnel / Secteur SIE / France) → décoder ces codes pour trouver.',
+    '5. Un fichier "Taleo_Sourcing_XXX" = résultat d\'une recherche sourcing = profil identifié.',
+    '6. Un fichier "Analyse_Missions_..." = synthèse des missions disponibles.',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'INVENTAIRE DES FICHIERS DISPONIBLES (' + files.length + ' total)',
+    '════════════════════════════════════════════════════════════',
+    'Répartition par type de document :',
+    typeLines.join('\n'),
+    'Fichiers analysés en profondeur : ' + relevantIdx.length + '/' + files.length,
+    '',
+    '════════════════════════════════════════════════════════════',
+    'INSTRUCTIONS STRICTES',
+    '════════════════════════════════════════════════════════════',
+    '- Lis et analyse le CONTENU RÉEL de chaque fichier fourni.',
+    '- Ne jamais inventer d\'informations absentes des fichiers.',
+    '- Cite les noms de fichiers EXACTS et les passages exacts du contenu.',
+    '- Réponds TOUJOURS en français, de manière structurée et précise.',
+    '- Raisonne sur le métier : comprends ce que l\'utilisateur cherche vraiment.',
+    '  Ex: "trouve un CF pour ce poste" = chercher des consultants fonctionnels',
+    '  disponibles dans les CVs/credentials/sourcings dont le profil correspond.',
+    '',
+    'FORMAT MATCHES (OBLIGATOIRE si recherche de correspondances) :',
+    'Termine ta réponse avec :',
+    '<MATCHES>[{"id":"id_exact","name":"nom_exact.ext","score":85,',
+    '"reason":"Raison précise avec extrait du fichier (cite le passage)"}]</MATCHES>',
+    'Score 0-100, uniquement >30, triés par pertinence décroissante, max 15.',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'CONTENU DES FICHIERS',
+    '════════════════════════════════════════════════════════════',
+    '',
+    fileCtx
+  ].filter(function(l){ return l !== null && l !== undefined; }).join('\n');
+
+  return lines;
+}
+
 function _fsCallAPI(){
   var files = _fsChat.files;
   var st = document.getElementById('fs-status');
@@ -3999,26 +4156,29 @@ function _fsCallAPI(){
     });
 
     var fileCtx = fileCtxParts.join('\n\n---\n\n');
-    var sys = [
-      'Tu es un expert en analyse documentaire disposant du CONTENU RÉEL des fichiers de l\'utilisateur.',
-      'Fichiers disponibles : ' + files.length + '. Fichiers analysés en profondeur : ' + relevantIdx.length + '.',
-      'Réponds TOUJOURS en français, avec précision. Cite les passages exacts quand pertinent.',
-      '',
-      'RÈGLES STRICTES :',
-      '- Lis et analyse vraiment le contenu de chaque fichier fourni.',
-      '- Ne jamais inventer d\'informations absentes des fichiers.',
-      '- Cite les noms de fichiers exacts dans tes réponses.',
-      '- Pour les recherches de correspondance (matching CV/poste, credentials, etc.) : analyse chaque fichier en détail.',
-      '- Si un élément est trouvé, cite le passage exact du fichier.',
-      '',
-      'FORMAT MATCHES (à ajouter si l\'utilisateur cherche des fichiers correspondants) :',
-      '<MATCHES>[{"id":"id_exact_du_fichier","name":"nom_exact.ext","score":85,"reason":"Raison précise avec extrait trouvé"}]</MATCHES>',
-      'Score 0-100 (inclure uniquement score>30), triés par score décroissant, max 15 résultats.',
-      '',
-      'CONTENU DES FICHIERS :',
-      '',
-      fileCtx
-    ].join('\n');
+
+    // Construire le profil client + contexte métier
+    var _sysClient = S.clients.find(function(x){ return x.id === portalCid; });
+    var _sysTools  = S.tools.filter(function(t){ return t.cid === portalCid && t.status === 'deployed'; });
+
+    // Classifier chaque fichier (CV, fiche de poste, credential, etc.)
+    var _fileClassif = files.map(function(f, i){
+      var txt = (extracted[i] && extracted[i].text) ? extracted[i].text : '';
+      return _fsClassifyFile(f, txt);
+    });
+    // Enrichir les en-têtes des fichiers analysés avec leur type détecté
+    relevantIdx.forEach(function(i){
+      var cls = _fileClassif[i];
+      if(cls && cls.label){
+        // Ajouter le type en tête du bloc fichier
+        var marker = 'FICHIER #'+(i+1)+' [ID:'+files[i].id+']';
+        var typeTag = ' {TYPE: '+cls.label+'}';
+        var pos = fileCtx.indexOf(marker);
+        if(pos>=0) fileCtx = fileCtx.slice(0,pos+marker.length) + typeTag + fileCtx.slice(pos+marker.length);
+      }
+    });
+
+    var sys = _fsBuildSystemPrompt(_sysClient, _sysTools, files, relevantIdx, fileCtx, _fileClassif);
 
     // Historique (6 derniers échanges)
     var histSlice = _fsChat.history.slice(-12);
