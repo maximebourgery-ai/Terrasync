@@ -2587,27 +2587,32 @@ function applyAdminPwdReset(){
   u.pwdResetAt=new Date().toISOString();
   persist();
 
-  // Also apply to portal localStorage
-  var portalUsers=portalGetUsers(u.cid);
-  var pu=portalUsers.find(function(x){return x.id===uid});
-  if(pu){
-    pu.pwd=newPwd;
-    pu.mustChangePassword=true;
-    pu.pwdResetBy='admin';
-    pu.pwdResetAt=new Date().toISOString();
-    portalSaveUsers(u.cid,portalUsers);
-  }
-
   // Clear input immediately (RGPD: don't leave pwd visible)
   inp.value='';
   inp.type='password';
 
-  ok.textContent='✓ Mot de passe réinitialisé. Le client devra le changer à sa prochaine connexion.';
+  ok.textContent='✓ Réinitialisation en cours...';
   ok.style.display='block';
-  renderDetail();renderKanban();
 
-  // Auto-close after 2s
-  setTimeout(function(){hideOv('ov-pwd-reset');},2500);
+  // Charger les portal_users depuis Supabase avant de modifier (cache admin vide)
+  portalLoadUsers(u.cid, function(portalUsers){
+    var pu=portalUsers.find(function(x){return x.id===uid});
+    if(pu){
+      pu.pwd=newPwd;
+      pu.mustChangePassword=true;
+      pu.pwdResetBy='admin';
+      pu.pwdResetAt=new Date().toISOString();
+    } else {
+      // L'utilisateur n'est pas encore dans portal_users — créer l'entrée
+      portalUsers.push({id:uid,cid:u.cid,name:u.name,email:u.email,pwd:newPwd,
+        status:u.status||'approved',toolIds:u.toolIds||[],last:u.last||'',
+        mustChangePassword:true,pwdResetBy:'admin',pwdResetAt:new Date().toISOString()});
+    }
+    portalSaveUsers(u.cid,portalUsers);
+    ok.textContent='✓ Mot de passe réinitialisé. Le client devra le changer à sa prochaine connexion.';
+    renderDetail();renderKanban();
+    setTimeout(function(){hideOv('ov-pwd-reset');},2500);
+  });
 }
 
 var editingToolId=null;
