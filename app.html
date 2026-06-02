@@ -1042,7 +1042,7 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
           </div>
         </div>
         <div><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Description</label>
-          <input id="t-d" placeholder="Ce que fait cet outil en une phrase..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;color:#0a0a08">
+          <input id="t-d" placeholder="Ce que fait cet outil en une phrase..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
         </div>
       </div>
       <div style="padding:20px 24px">
@@ -1076,10 +1076,10 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
             </select>
           </div>
           <div style="margin-bottom:12px"><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">MasterPrompt <span style="color:var(--ared)">*</span></label>
-            <textarea id="t-mp-prompt" placeholder="Ex: Tu es un expert RH. Analyse le CV fourni..." style="width:100%;min-height:110px;border:1.5px solid var(--abdr);border-radius:8px;padding:10px 12px;font-size:13px;font-family:var(--bfnt);resize:vertical;outline:none;line-height:1.6;color:#0a0a08" oninput="autoResizeMP(this)"></textarea>
+            <textarea id="t-mp-prompt" placeholder="Ex: Tu es un expert RH. Analyse le CV fourni..." style="width:100%;min-height:110px;border:1.5px solid var(--abdr);border-radius:8px;padding:10px 12px;font-size:13px;font-family:var(--bfnt);resize:vertical;outline:none;line-height:1.6" oninput="autoResizeMP(this)"></textarea>
           </div>
           <div style="margin-bottom:10px"><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Message d’accueil</label>
-            <input id="t-mp-welcome" placeholder="Ex: Bonjour ! Déposez votre document..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;color:#0a0a08">
+            <input id="t-mp-welcome" placeholder="Ex: Bonjour ! Déposez votre document..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
           </div>
           <div style="background:var(--agl);border:1px solid var(--agm);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--ag);line-height:1.7">
             &#127775; Le client pourra glisser des PDFs, images, documents et discuter avec l’IA.
@@ -5233,7 +5233,7 @@ function openCreditManager(cid){
     +'<button data-cid="'+cid+'" data-amt="5000" onclick="quickAlloc(this.dataset.cid,+this.dataset.amt)" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px;font-family:var(--cfnt);font-size:14px;font-weight:900;cursor:pointer;text-align:center">+5000 cr. <small style="font-weight:400;color:rgba(255,255,255,.7);display:block;font-size:10px">€350 — Pro</small></button>'
     +'</div>'
     +'<div style="display:flex;gap:8px">'
-    +'<input id="credit-manual" type="number" placeholder="Montant personnalisé..." style="flex:1;border:1.5px solid var(--agm);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;color:#0a0a08">'
+    +'<input id="credit-manual" type="number" placeholder="Montant personnalisé..." style="flex:1;border:1.5px solid var(--agm);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">'
     +'<button data-cid="'+cid+'" onclick="manualAlloc(this.dataset.cid)" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 16px;font-family:var(--cfnt);font-size:13px;font-weight:800;cursor:pointer">+ Ajouter</button>'
     +'<button data-cid="'+cid+'" onclick="manualDeduct(this.dataset.cid)" style="background:#fee2e2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">− Retirer</button>'
     +'<button data-cid="'+cid+'" onclick="setAlloc(this.dataset.cid)" style="background:var(--as2);border:1px solid var(--abdr);color:#0a0a08;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer">Définir</button>'
@@ -7310,7 +7310,7 @@ function showSubdomainDeployer(cid){
     '<div style="font-size:11px;color:var(--am)">Une fois le DNS propagé, le bouton LANCER ouvrira directement ce lien</div></div>'+
     '</div>'+
     '<div style="display:flex;gap:8px">'+
-    '<input id="subdomain-url-inp" value="https://'+subdomain+'" style="flex:1;border:1.5px solid var(--agm);border-radius:8px;padding:10px 12px;font-family:var(--mfnt);font-size:12px;outline:none;color:#0a0a08">'+
+    '<input id="subdomain-url-inp" value="https://'+subdomain+'" style="flex:1;border:1.5px solid var(--agm);border-radius:8px;padding:10px 12px;font-family:var(--mfnt);font-size:12px;outline:none">'+
     '<button data-cid="'+cid+'" onclick="saveClientPortalUrl(this.dataset.cid)" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:10px 16px;font-family:var(--cfnt);font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap">ENREGISTRER</button>'+
     '</div>'+
     '</div>';
