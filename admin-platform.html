@@ -623,7 +623,7 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
       <div style="width:7px;height:7px;border-radius:50%;background:#00d464;margin-left:8px"></div>
     </div>
     <div class="paov-load" id="paov-load"><div class="paov-spin"></div><div style="font-size:12px">Chargement...</div></div>
-    <iframe id="paov-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals" style="display:none;flex:1;border:none;width:100%"></iframe>
+    <iframe id="paov-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" style="display:none;flex:1;border:none;width:100%"></iframe>
   </div>
   <div class="pchat" id="pchat">
     <div class="pch-hd"><div class="pch-ico" id="pch-ico"></div><div><div class="pch-name" id="pch-name"></div></div><div class="pch-close" id="pch-close">x</div></div>
@@ -2375,13 +2375,60 @@ function portalDeleteFile(cid,fid){
   portalSaveFiles(cid,files);
 }
 
+// Repair existing binary files stored without encoding flag
+// Called once on load to migrate legacy files
+function repairBinaryFiles(cid){
+  var files=portalGetFiles(cid);
+  var changed=false;
+  files.forEach(function(f){
+    if(!f.encoding&&f.mime&&_isBinaryMime(f.mime)&&f.content){
+      // Check if content looks like base64 (no non-base64 chars, length multiple of 4)
+      var b64=f.content;
+      if(b64.indexOf(',')>-1&&b64.startsWith('data:'))b64=b64.split(',')[1];
+      if(/^[A-Za-z0-9+/]+=*$/.test(b64.trim())){
+        f.encoding='base64';
+        changed=true;
+      }
+    }
+  });
+  if(changed)portalSaveFiles(cid,files);
+}
+
 function portalDownloadFile(f){
-  var blob=new Blob([f.content],{type:f.mime||'text/plain;charset=utf-8'});
+  var content=f.content||'';
+  var mime=f.mime||'text/plain;charset=utf-8';
+  var blob;
+  try{
+    if(f.encoding==='base64'||_isBinaryMime(mime)){
+      // Content stored as base64 — decode to binary before creating Blob
+      var b64=content;
+      // Strip data URI prefix if present (data:<mime>;base64,<data>)
+      if(b64.indexOf(',')>-1&&b64.startsWith('data:'))b64=b64.split(',')[1];
+      var binary=atob(b64);
+      var bytes=new Uint8Array(binary.length);
+      for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      blob=new Blob([bytes],{type:mime});
+    } else {
+      blob=new Blob([content],{type:mime});
+    }
+  }catch(e){
+    // Fallback: plain text blob
+    blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+  }
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;a.download=f.name;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url)},3000);
+}
+
+function _isBinaryMime(mime){
+  if(!mime)return false;
+  var binaryTypes=['application/vnd','application/octet','application/zip','application/pdf',
+    'application/msword','application/excel','application/powerpoint',
+    'image/','audio/','video/'];
+  for(var i=0;i<binaryTypes.length;i++){if(mime.toLowerCase().indexOf(binaryTypes[i])===0||mime.toLowerCase().indexOf(binaryTypes[i])>-1)return true;}
+  return false;
 }
 
 function loadPortal(cid){
@@ -2902,6 +2949,7 @@ function _doRenderPortalApp(c){
 
   // FILES SECTION
   h+='<div id="psec-files" style="display:none">';
+  repairBinaryFiles(portalCid);
   var allFiles=portalGetFiles(portalCid);
   // Search bar + AI search
   h+='<div style="display:flex;gap:8px;margin-bottom:20px;align-items:center">';
@@ -3371,6 +3419,34 @@ function saveAiResponse(content, toolName, toolIcon){
   renderPortalApp();
   setTimeout(function(){showPortalSection('files');},50);
 }
+
+// Bridge API for web tools running inside paov-frame
+// Tools call: window.parent.TERR.saveFile({name, content, mime, encoding})
+// For binary files: encoding='base64', content=base64string
+window.TERR = {
+  saveFile: function(opts){
+    if(!opts||!opts.name||!opts.content){return;}
+    var t=S.tools.find(function(x){return x.id===window._currentToolId})||{};
+    var file={
+      name:opts.name,
+      content:opts.content,
+      mime:opts.mime||'application/octet-stream',
+      encoding:opts.encoding||null,
+      toolId:t.id||'',
+      toolName:t.name||'Outil',
+      toolIcon:t.icon||'📄',
+      userId:portalMe?portalMe.id:'',
+      userName:portalMe?portalMe.name:'Utilisateur'
+    };
+    if(portalCid){
+      portalAddFile(portalCid,file);
+      renderPortalApp();
+      toast('✓ Fichier "'+opts.name+'" sauvegardé');
+    }
+  },
+  getUser: function(){return portalMe?{id:portalMe.id,name:portalMe.name,email:portalMe.email}:null;},
+  getCid: function(){return portalCid;}
+};
 
 function handleToolClick(tid){
   var t=S.tools.find(function(x){return x.id===tid});if(!t)return;
@@ -4100,6 +4176,40 @@ function buildPortalHTML(c){
     html += 'function renderCards(tools){var el=document.getElementById("agd");if(!tools.length){el.innerHTML="<p style=\'padding:60px;text-align:center;color:rgba(255,255,255,.2);grid-column:1/-1\'>Aucun outil disponible.</p>";return}el.innerHTML=tools.map(function(t,i){return mkCard(t,i)}).join("")}';
     html += 'function openT(el){var tid=el.dataset.tid;var t=TD.find(function(x){return x.id===tid});if(!t)return;if(!t.htmlContent||!t.htmlContent.trim()){alert("Outil non disponible - aucun fichier deploye");return}document.getElementById("tti").textContent=t.name;document.getElementById("tfr").srcdoc=t.htmlContent;document.getElementById("tsc").className="ts on"}';
     html += 'function closeT(){document.getElementById("tsc").className="ts";var f=document.getElementById("tfr");f.srcdoc=""}';
+    // Bridge TERR API: lets web tools save files to portal storage
+    // Web tools call: window.parent.TERR.saveFile({name, content, mime, encoding:'base64'})
+    html += 'function _pDownload(f){';
+    html += '  var c=f.content||"",mime=f.mime||"text/plain;charset=utf-8";';
+    html += '  var blob;';
+    html += '  try{';
+    html += '    var isBin=["vnd","octet","zip","pdf","msword","excel","powerpoint","image/","audio/","video/"].some(function(t){return mime.indexOf(t)>-1});';
+    html += '    if(f.encoding==="base64"||isBin){';
+    html += '      var b64=c.indexOf(",")>-1&&c.startsWith("data:")?c.split(",")[1]:c;';
+    html += '      var bin=atob(b64),bytes=new Uint8Array(bin.length);';
+    html += '      for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);';
+    html += '      blob=new Blob([bytes],{type:mime});';
+    html += '    }else{blob=new Blob([c],{type:mime});}';
+    html += '  }catch(e){blob=new Blob([c],{type:"text/plain;charset=utf-8"});}';
+    html += '  var url=URL.createObjectURL(blob);var a=document.createElement("a");';
+    html += '  a.href=url;a.download=f.name;document.body.appendChild(a);a.click();document.body.removeChild(a);';
+    html += '  setTimeout(function(){URL.revokeObjectURL(url)},3000);';
+    html += '}';
+    html += 'var _me2=null;try{_me2=JSON.parse(localStorage.getItem(UK)||"null")}catch(e){}';
+    html += 'window.TERR={';
+    html += '  saveFile:function(opts){';
+    html += '    if(!opts||!opts.name||!opts.content)return;';
+    html += '    var fk="terr_"+CID+"_files";';
+    html += '    var files=[];try{files=JSON.parse(localStorage.getItem(fk)||"[]")}catch(e){}';
+    html += '    var now=Date.now();';
+    html += '    var f={id:Math.random().toString(36).slice(2,10),name:opts.name,content:opts.content,mime:opts.mime||"application/octet-stream",encoding:opts.encoding||null,createdAt:now,expiresAt:now+30*24*3600*1000,toolId:opts.toolId||"",toolName:opts.toolName||"Outil",toolIcon:opts.toolIcon||"📄",userId:_me2?_me2.id:"",userName:_me2?_me2.name:"Utilisateur"};';
+    html += '    files.unshift(f);if(files.length>100)files=files.slice(0,100);';
+    html += '    try{localStorage.setItem(fk,JSON.stringify(files))}catch(e){}';
+    html += '    alert("✓ Fichier \\""+opts.name+"\\" sauvegardé dans Mes fichiers");';
+    html += '  },';
+    html += '  downloadFile:function(opts){_pDownload(opts)},';
+    html += '  getUser:function(){return _me2?{id:_me2.id,name:_me2.name,email:_me2.email}:null},';
+    html += '  getCid:function(){return CID}';
+    html += '};';
     html += 'function logout(){try{localStorage.removeItem(UK);localStorage.removeItem(UK+"_exp")}catch(e){}document.getElementById("as").className="as";document.getElementById("ls").style.display="flex"}';
     html += 'document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});';
     html += 'document.getElementById("rp2").addEventListener("keydown",function(e){if(e.key==="Enter")doReg()});';
