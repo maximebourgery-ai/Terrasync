@@ -72,12 +72,16 @@ footer a{color:#4a8fd8;text-decoration:none}
     <h1>Connexion <span>Portail</span></h1>
     <p>Connectez-vous pour accéder à vos outils IA</p>
     
-    <form id="loginForm">
+    <form id="loginForm" autocomplete="on">
       <div class="form-group">
         <label for="email">Adresse Email</label>
-        <input type="email" id="email" name="email" placeholder="votre@email.com" required>
+        <input type="email" id="email" name="email" autocomplete="email" placeholder="votre@email.com" required>
       </div>
-      
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••" required>
+      </div>
+
       <button type="submit" class="btn" id="loginBtn">
         Se connecter →
       </button>
@@ -113,21 +117,22 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
   const btn = document.getElementById('loginBtn');
-  
-  if (!email) {
-    showToast('Veuillez entrer votre email', 'error');
+
+  if (!email || !password) {
+    showToast('Veuillez remplir tous les champs', 'error');
     return;
   }
-  
+
   btn.disabled = true;
   btn.textContent = 'Connexion...';
-  
+
   try {
     const resp = await fetch('/api/find-portal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password }),
     });
 
     const result = await resp.json();
