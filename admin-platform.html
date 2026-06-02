@@ -189,6 +189,20 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
 .mbd{padding:16px 20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
 .mft{padding:12px 20px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
 @media(max-width:520px){.mft{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
+/* Force lisibilité dans la modale — indépendant du thème sombre de la page */
+.modal{color:#0f1f0a}
+.modal .fg input,.modal .fg select,.modal .fg textarea{color:#0f1f0a!important;background:#fff!important}
+.modal .fg input::placeholder,.modal .fg textarea::placeholder{color:rgba(15,31,10,.35)!important}
+.modal .fg label{color:#5a6e52}
+.modal .mttl{color:#0f1f0a}
+/* Tool type selector cards */
+.tg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.tc2{background:#f7f8f6;border:2px solid #d4e4cc;border-radius:10px;padding:12px 10px;cursor:pointer;text-align:center;transition:all .15s}
+.tc2:hover{border-color:#3a5a28;background:#eef4eb}
+.tc2.on{border-color:#3a5a28;background:#eef4eb;box-shadow:0 0 0 3px rgba(58,90,40,.12)}
+.tc2-ico{font-size:22px;margin-bottom:4px}
+.tc2-n{font-size:12px;font-weight:700;color:#0f1f0a;margin-bottom:2px}
+.tc2-d{font-size:10px;color:#5a6e52;line-height:1.4}
 
 /* TOAST */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px) scale(.97);z-index:9999;background:var(--dark);color:#fff;border-radius:var(--r2);padding:11px 20px;font-size:13px;font-weight:500;box-shadow:var(--sh3);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;max-width:320px;line-height:1.5;white-space:nowrap}
