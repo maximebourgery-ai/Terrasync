@@ -5153,25 +5153,35 @@ function _doRenderPortalApp(c){
       if((f.createdAt||0)>toolGroups[key].lastDate)toolGroups[key].lastDate=f.createdAt||0;
     });
     var sortedKeys=Object.keys(toolGroups).sort(function(a,b){return (toolGroups[b].lastDate||0)-(toolGroups[a].lastDate||0);});
+    // Webapp filter dropdown
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">';
+    h+='<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Webapp</span>';
+    h+='<div style="flex:1;position:relative">';
+    h+='<select id="webapp-filter" onchange="filterByWebapp(this.value)" style="width:100%;appearance:none;-webkit-appearance:none;background:#131726;border:1.5px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 36px 9px 14px;color:#fff;font-size:13px;font-family:var(--bfnt);outline:none;cursor:pointer;transition:border .15s" onfocus="this.style.borderColor=\''+color+'\'" onblur="this.style.borderColor=\'rgba(255,255,255,.09)\'">';
+    h+='<option value="">Toutes les webapps ('+allFilesF.length+' fichiers)</option>';
+    sortedKeys.forEach(function(k){var g=toolGroups[k];h+='<option value="'+k+'">'+g.name+' — '+g.files.length+' fichier'+(g.files.length>1?'s':'')+'</option>';});
+    h+='</select>';
+    h+='<span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.4);font-size:11px;pointer-events:none">&#9660;</span>';
+    h+='</div></div>';
     h+='<div id="files-folders">';
     sortedKeys.forEach(function(key,gi){
       var grp=toolGroups[key];
       var folderId='folder-'+gi;
-      h+='<div style="margin-bottom:12px">';
+      h+='<div data-folderkey="'+key+'" style="margin-bottom:12px">';
       h+='<div class="folder-hd" data-fid="'+folderId+'" onclick="toggleFolder(this.dataset.fid)">';
       h+='<span style="font-size:22px">'+grp.icon+'</span>';
       h+='<div style="flex:1"><div style="font-family:var(--cfnt);font-size:15px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:-.2px">'+grp.name+'</div>';
       h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">'+grp.files.length+' fichier'+(grp.files.length>1?'s':'')+'</div></div>';
-      h+='<span id="arr-'+folderId+'" style="color:rgba(255,255,255,.4);font-size:13px;transition:transform .2s">&#9660;</span>';
+      h+='<span id="arr-'+folderId+'" style="color:rgba(255,255,255,.4);font-size:13px;transition:transform .2s;transform:rotate(-90deg)">&#9660;</span>';
       h+='</div>';
-      h+='<div id="'+folderId+'" style="padding:0 0 0 16px;margin-top:6px;display:flex;flex-direction:column;gap:6px">';
+      h+='<div id="'+folderId+'" style="padding:0 0 0 16px;margin-top:6px;flex-direction:column;gap:6px;display:none">';
       grp.files.forEach(function(f){
         var daysLeft=Math.ceil((f.expiresAt-Date.now())/(24*3600*1000));
         var dateStr2=new Date(f.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         var urgentColor=daysLeft<=3?'#f87171':daysLeft<=7?'#fbbf24':'rgba(255,255,255,.4)';
         var fMime=f.mime||'';
         var fIco=fMime.includes('pdf')?'&#128196;':(fMime.includes('word')||f.name.endsWith('.docx'))?'&#128221;':(fMime.includes('excel')||f.name.endsWith('.xlsx'))?'&#128202;':(fMime.includes('presentation')||f.name.endsWith('.pptx'))?'&#128209;':(fMime.includes('image'))?'&#128444;':(fMime.includes('zip'))?'&#128230;':'&#128196;';
-        h+='<div class="file-row file-row-new" data-fname="'+f.name.toLowerCase()+'" data-fcontent="'+(f.content||'').toLowerCase().slice(0,200)+'">';
+        h+='<div class="file-row file-row-new" data-fname="'+f.name.toLowerCase()+'" data-fcontent="'+(f.content||'').toLowerCase().slice(0,200)+'" data-toolkey="'+key+'">';
         h+='<span style="font-size:18px;flex-shrink:0">'+fIco+'</span>';
         h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>';
         h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">'+(f.userName||f.toolName||'Utilisateur')+' &middot; '+dateStr2+'</div></div>';
@@ -5464,22 +5474,69 @@ function toggleFolder(id){
   if(arr)arr.style.transform=isOpen?'rotate(-90deg)':'rotate(0deg)';
 }
 
-function filterFiles(q){
-  var rows=document.querySelectorAll('.file-row');
+function filterByWebapp(key){
+  var wf=document.getElementById('webapp-filter');
+  var activeKey=key!==undefined?key:(wf?wf.value:'');
+  var groups=document.querySelectorAll('#files-folders>[data-folderkey]');
+  groups.forEach(function(grpDiv){
+    var gk=grpDiv.dataset.folderkey;
+    var show=!activeKey||gk===activeKey;
+    grpDiv.style.display=show?'block':'none';
+    if(activeKey&&gk===activeKey){
+      // Auto-expand when specific webapp selected
+      var folderId=grpDiv.querySelector('.folder-hd')&&grpDiv.querySelector('.folder-hd').dataset.fid;
+      if(folderId){
+        var content=document.getElementById(folderId);
+        var arr=document.getElementById('arr-'+folderId);
+        if(content){content.style.display='flex';content.style.flexDirection='column';}
+        if(arr)arr.style.transform='rotate(0deg)';
+      }
+    }
+  });
+  // Re-apply text filter on top
+  var search=document.getElementById('files-search');
+  if(search&&search.value)_applyFileTextFilter(search.value);
+}
+
+function _applyFileTextFilter(q){
   var lq=q.toLowerCase().trim();
+  var rows=document.querySelectorAll('.file-row');
   rows.forEach(function(row){
     var fname=(row.dataset.fname||'');
     var fcontent=(row.dataset.fcontent||'');
     var match=!lq||fname.includes(lq)||fcontent.includes(lq);
     row.style.display=match?'flex':'none';
   });
-  // Show/hide folder headers based on visible children
   var folders=document.querySelectorAll('[id^="folder-"]');
   folders.forEach(function(folder){
     var visible=folder.querySelectorAll('.file-row:not([style*="none"])').length;
+    if(visible>0&&folder.style.display==='none'){
+      folder.style.display='flex';folder.style.flexDirection='column';
+      var arr=document.getElementById('arr-'+folder.id);
+      if(arr)arr.style.transform='rotate(0deg)';
+    }
     var hdr=folder.previousElementSibling;
-    if(hdr)hdr.style.display=visible>0||!lq?'flex':'none';
+    if(hdr&&hdr.classList.contains('folder-hd')){
+      var grpDiv=hdr.parentElement;
+      if(grpDiv){
+        var wf=document.getElementById('webapp-filter');
+        var activeKey=wf?wf.value:'';
+        var gk=grpDiv.dataset.folderkey;
+        var webappMatch=!activeKey||gk===activeKey;
+        grpDiv.style.display=(webappMatch&&(visible>0||!lq))?'block':'none';
+      }
+    }
   });
+}
+
+function filterFiles(q){
+  var lq=q.toLowerCase().trim();
+  if(!lq){
+    // Reset text filter — respect webapp filter
+    filterByWebapp();
+    return;
+  }
+  _applyFileTextFilter(lq);
 }
 
 
