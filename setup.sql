@@ -37,8 +37,14 @@ CREATE TABLE IF NOT EXISTS portal_files (
   mime TEXT NOT NULL DEFAULT 'application/octet-stream',
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  expires_at TIMESTAMPTZ NOT NULL
+  expires_at TIMESTAMPTZ NOT NULL,
+  tool_id TEXT NOT NULL DEFAULT '',
+  tool_name TEXT NOT NULL DEFAULT '',
+  tool_icon TEXT NOT NULL DEFAULT ''
 );
+ALTER TABLE portal_files ADD COLUMN IF NOT EXISTS tool_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE portal_files ADD COLUMN IF NOT EXISTS tool_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE portal_files ADD COLUMN IF NOT EXISTS tool_icon TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS portal_files_cid ON portal_files(workspace_id, cid);
 CREATE INDEX IF NOT EXISTS portal_files_expires ON portal_files(expires_at);
 
