@@ -2233,10 +2233,8 @@ function renderCdBody(c,idx){
 function approveUser(uid){
   var u=S.users.find(function(x){return x.id===uid});if(!u)return;
   u.status='approved';
-  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{status:'approved'}).catch(function(){});
-  if(!_portalUsersCache[u.cid])_portalUsersCache[u.cid]=[];
-  var cu=_portalUsersCache[u.cid].find(function(x){return x.id===u.id;});
-  if(cu)cu.status='approved';
+  // Synchroniser avec le portail (cache local + Supabase upsert)
+  syncUserToPortal(u);
   persist();
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
@@ -2368,6 +2366,8 @@ function syncUserToPortal(u){
   var i=cache.findIndex(function(x){return x.id===u.id;});
   if(i>-1) cache[i]=Object.assign(cache[i],{status:u.status,toolIds:u.toolIds||[]});
   else cache.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
+  // Persister le cache en localStorage aussi
+  try{localStorage.setItem('terr_'+u.cid+'_u',JSON.stringify(cache));}catch(e){}
 }
 
 function importCode(){
@@ -5876,6 +5876,8 @@ function portalGetUsers(cid){
 }
 function portalSaveUsers(cid, users){
   _portalUsersCache[cid] = users;
+  // Persister aussi en localStorage (fallback si Supabase indisponible)
+  try{localStorage.setItem('terr_'+cid+'_u',JSON.stringify(users));}catch(e){}
   // Sync cloud asynchrone : upsert
   if(!users || !users.length) return;
   var rows = users.map(function(u){
