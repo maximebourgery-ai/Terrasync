@@ -4939,7 +4939,10 @@ function jbPushFiles(cid, files) {
        mime:f.mime||'application/octet-stream',
        content:contentToStore,
        created_at:new Date(f.createdAt||Date.now()).toISOString(),
-       expires_at:new Date(f.expiresAt).toISOString()},
+       expires_at:new Date(f.expiresAt).toISOString(),
+       tool_id:f.toolId||'',
+       tool_name:f.toolName||'',
+       tool_icon:f.toolIcon||''},
       {'Prefer':'resolution=merge-duplicates'}
     ).catch(function(){});
   });
@@ -4964,7 +4967,10 @@ function jbPullFiles(cid, cb) {
         id:r.id, cid:r.cid, name:r.name, mime:r.mime,
         content: storedContent,
         createdAt: new Date(r.created_at).getTime(),
-        expiresAt: new Date(r.expires_at).getTime()
+        expiresAt: new Date(r.expires_at).getTime(),
+        toolId: r.tool_id||'',
+        toolName: r.tool_name||'',
+        toolIcon: r.tool_icon||''
       };
     });
     _filesCache[cid] = files;
@@ -5025,6 +5031,43 @@ function portalAddFile(cid,file){
 function portalDeleteFile(cid,fid){
   var files=portalGetFiles(cid).filter(function(f){return f.id!==fid});
   portalSaveFiles(cid,files);
+}
+
+function reclassifyFiles(){
+  if(!portalCid||!portalMe){toast('Session portail requise',false);return;}
+  var files=portalGetFiles(portalCid);
+  var unclassified=files.filter(function(f){return !f.toolId&&(!f.toolName||f.toolName==='Outil'||f.toolName==='');});
+  if(!unclassified.length){toast('✅ Tous les fichiers sont déjà classés !');return;}
+  var tools=S.tools||[];
+  var fixed=0;
+  unclassified.forEach(function(f){
+    // Chercher un outil dont le nom apparaît dans le nom du fichier
+    var fname=(f.name||'').toLowerCase();
+    var matched=null;
+    tools.forEach(function(t){
+      if(!matched&&t.name){
+        var tlow=t.name.toLowerCase();
+        // Match exact ou partiel (ex: "devis" dans "devis_2024-01-15.pdf")
+        if(fname.includes(tlow)||tlow.split(' ').some(function(w){return w.length>3&&fname.includes(w);})){
+          matched=t;
+        }
+      }
+    });
+    if(matched){
+      f.toolId=matched.id||'';
+      f.toolName=matched.name||'';
+      f.toolIcon=matched.icon||'🌐';
+      fixed++;
+    }
+  });
+  if(fixed>0){
+    portalSaveFiles(portalCid,files);
+    jbPushFiles(portalCid,files);
+    toast('✅ '+fixed+' fichier'+(fixed>1?'s classés':' classé')+' par outil');
+    setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+  } else {
+    toast('⚠️ Aucun fichier ne correspond à un outil connu — renommez les fichiers ou classez-les manuellement',false);
+  }
 }
 function portalDownloadFile(f){
   var cnt = f.content || '';
@@ -5138,6 +5181,7 @@ function _doRenderPortalApp(c){
   h+='<input id="files-search" placeholder="Rechercher dans vos fichiers..." oninput="filterFiles(this.value)" style="width:100%;background:#131726;border:1.5px solid rgba(255,255,255,.09);border-radius:12px;padding:11px 14px 11px 40px;color:#fff;font-size:13px;font-family:var(--bfnt);outline:none;transition:border .15s" onfocus="this.style.borderColor=\''+color+'\'" onblur="this.style.borderColor=\'rgba(255,255,255,.09)\'">';
   h+='</div>';
   h+='<button onclick="openFileSearchChat()" style="background:'+color+';border:none;color:'+(isLight(color)?'#000':'#fff')+';border-radius:12px;padding:11px 18px;font-family:var(--cfnt);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;flex-shrink:0;box-shadow:0 4px 14px rgba('+colorRgb+',.35)">&#129302; IA <span style="opacity:.7;font-size:10px">(8 cr)</span></button>';
+  h+='<button onclick="reclassifyFiles()" title="Reclassifier les fichiers sans outil associé" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);border-radius:12px;padding:11px 14px;font-size:15px;cursor:pointer;flex-shrink:0">&#128260;</button>';
   h+='</div>';
   h+='<div id="ai-search-result" style="display:none;background:#131726;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:18px;margin-bottom:16px;font-size:13px;color:rgba(255,255,255,.8);line-height:1.7"></div>';
   var allFilesF=portalGetFiles(portalCid);
