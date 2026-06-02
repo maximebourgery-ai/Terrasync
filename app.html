@@ -2239,7 +2239,20 @@ function approveUser(uid){
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
 }
-function delUser(uid){S.users=S.users.filter(function(u){return u.id!==uid});persist();renderDetail();renderKanban();toast('Compte supprime')}
+function delUser(uid){
+  var u=S.users.find(function(x){return x.id===uid});if(!u)return;
+  S.users=S.users.filter(function(x){return x.id!==uid});
+  // Supprimer de Supabase aussi
+  if(u.cid){
+    sbFetch('DELETE','/rest/v1/portal_users?id=eq.'+encodeURIComponent(uid)).catch(function(){});
+    // Retirer du cache portail
+    if(_portalUsersCache[u.cid]){
+      _portalUsersCache[u.cid]=_portalUsersCache[u.cid].filter(function(x){return x.id!==uid});
+      try{localStorage.setItem('terr_'+u.cid+'_u',JSON.stringify(_portalUsersCache[u.cid]));}catch(e){}
+    }
+  }
+  persist();renderDetail();renderKanban();toast('Compte supprime')
+}
 
 // FILES
 function dzOv(e,id){e.preventDefault();var el=$('dz-'+id);if(el)el.classList.add('over')}
