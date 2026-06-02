@@ -597,7 +597,7 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
         </div>
       </div>
       <div id="tab-users-content" style="display:none;flex:1;overflow:hidden;flex-direction:column">
-        <div class="amt"><div><div class="amtitle">Gestion des acces</div><div class="amsub">Approuvez les demandes et assignez les outils</div></div><div class="amact"><button class="btn btn-g btn-sm" onclick="showOv('ov-import')">Importer un code</button></div></div>
+        <div class="amt"><div><div class="amtitle">Gestion des acces</div><div class="amsub">Approuvez les demandes et assignez les outils</div></div><div class="amact"><button class="btn btn-p btn-sm" onclick="forceRefreshUsersFromSupabase()" title="Recharger les utilisateurs depuis Supabase">&#8635; Sync Supabase</button><button class="btn btn-g btn-sm" onclick="showOv('ov-import')">Importer un code</button></div></div>
         <div class="ambody" id="kanban-body" style="overflow-y:auto;flex:1"></div>
       </div>
       <!-- COMPTA TAB -->
@@ -2381,6 +2381,66 @@ function syncUserToPortal(u){
   else cache.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
   // Persister le cache en localStorage aussi
   try{localStorage.setItem('terr_'+u.cid+'_u',JSON.stringify(cache));}catch(e){}
+}
+
+function forceRefreshUsersFromSupabase(){
+  toast('Synchronisation avec Supabase en cours...');
+  var pendingLoads = 0;
+  var completed = 0;
+  // D'abord recharger les clients depuis Supabase
+  jbPull(function(ok){
+    if(!ok){
+      toast('Impossible de recharger les clients',false);
+      return;
+    }
+    // Maintenant recharger les utilisateurs de chaque client
+    S.clients.forEach(function(c){
+      pendingLoads++;
+      portalLoadUsers(c.id, function(){
+        completed++;
+        if(completed === pendingLoads){
+          // Tous les utilisateurs chargés, fusionner et rafraichir
+          _mergeUsersFromSupabase();
+          renderKanban();
+          renderDetail();
+          toast('Utilisateurs synchronises avec Supabase ✓');
+        }
+      });
+    });
+    if(pendingLoads === 0){
+      toast('Aucun client trouvé',false);
+    }
+  });
+}
+
+function _mergeUsersFromSupabase(){
+  // Fusionner les utilisateurs de Supabase avec S.users
+  // Garder les approbations/revocations locales
+  S.clients.forEach(function(c){
+    var portalUsers = portalGetUsers(c.id);
+    portalUsers.forEach(function(pu){
+      var localUser = S.users.find(function(u){return u.id===pu.id;});
+      if(!localUser){
+        // Nouvel utilisateur depuis Supabase
+        S.users.push({
+          id: pu.id,
+          cid: pu.cid,
+          name: pu.name,
+          email: pu.email,
+          pwd: pu.pwd||'',
+          status: pu.status||'pending',
+          toolIds: pu.toolIds||[],
+          last: pu.last||''
+        });
+      } else {
+        // Utilisateur existe : mettre a jour last et toolIds depuis Supabase
+        localUser.last = pu.last || localUser.last;
+        // Ne pas ecraser status (garder la decision locale d'approbation)
+        if(!localUser.status && pu.status) localUser.status = pu.status;
+      }
+    });
+  });
+  persist();
 }
 
 function importCode(){
