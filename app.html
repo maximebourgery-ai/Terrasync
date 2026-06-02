@@ -3527,7 +3527,7 @@ function openFileSearchChat(){
   ov.innerHTML=
     '<div style="width:100%;max-width:700px;height:min(80vh,calc(100dvh - 40px));background:#0f1117;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 40px rgba(0,0,0,.6)">'+
     '<div style="padding:14px 20px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">'+
-    '<div><div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff">&#129302; Recherche IA</div>'+
+    '<div><div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff">&#129302; Recherche IA <span style="font-size:10px;font-weight:600;opacity:.5;font-family:var(--bfnt)">Claude Opus</span></div>'+
     '<div id="fs-status" style="font-size:11px;color:rgba(255,255,255,.4)">Chargement depuis Supabase\u2026</div></div>'+
     '<div style="display:flex;gap:8px">'+
     '<button onclick="_toggleFsCompact()" style="background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.6);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer" title="Agrandir/Réduire">&#9635;</button>'+
@@ -3552,10 +3552,8 @@ function _fsLoadFilesCloud(){
   var st=document.getElementById('fs-status');
   if(st)st.textContent='Chargement depuis Supabase\u2026';
   jbPullFiles(portalCid,function(files){
-    var readable=files.filter(function(f){
-      var c=f.content||'';
-      return c.length>10 && c!=='__LOCAL_ONLY__';
-    });
+    // Inclure TOUS les fichiers valides (y compris __LOCAL_ONLY__ \u2192 IDB fallback dans _fsExtractText)
+    var readable=files.filter(function(f){ return !!(f.name||f.id); });
     // Enrichir les fichiers text: avec leur type
     readable=readable.map(function(f){
       if((f.content||'').startsWith('text:')){
@@ -3564,10 +3562,10 @@ function _fsLoadFilesCloud(){
       return f;
     });
     _fsChat.files=readable;
-    var skipped=files.filter(function(f){return (f.content||'')==='__LOCAL_ONLY__';}).length;
+    var localOnly=files.filter(function(f){return (f.content||'')==='__LOCAL_ONLY__';}).length;
     if(st){
-      var msg=readable.length+' fichier(s) cloud charg\u00e9(s)';
-      if(skipped>0)msg+=' \u2022 '+skipped+' inaccessibles';
+      var msg=readable.length+' fichier(s) charg\u00e9(s)';
+      if(localOnly>0)msg+=' \u2022 '+localOnly+' en lecture locale (IndexedDB)';
       st.textContent=msg;
     }
     if(!readable.length){
@@ -3847,21 +3845,24 @@ function _fsFilterByTitle(query, files){
 
 // ── Phase 2 : pré-filtrage dans le contenu extrait ────────────────────────────
 function _fsPreFilter(query, extracted, files){
-  if(files.length <= 4) return extracted.map(function(_,i){ return i; });
+  if(files.length <= 30) return extracted.map(function(_,i){ return i; });
   var qWords = query.toLowerCase().split(/\s+/).filter(function(w){ return w.length > 2; });
   if(!qWords.length) return extracted.map(function(_,i){ return i; });
 
   var scored = extracted.map(function(res, i){
     var text = (res.text || '').toLowerCase();
+    var fname = (files[i].name || '').toLowerCase();
     var score = qWords.reduce(function(acc, w){
       var re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'g');
-      return acc + (text.match(re) || []).length;
+      var contentHits = (text.match(re) || []).length;
+      var nameHits = (fname.match(re) || []).length * 5;
+      return acc + contentHits + nameHits;
     }, 0);
     return { i: i, contentScore: score };
   });
 
   scored.sort(function(a, b){ return b.contentScore - a.contentScore; });
-  var topN = Math.max(5, Math.min(8, files.length));
+  var topN = Math.min(30, files.length);
   return scored.slice(0, topN).map(function(s){ return s.i; });
 }
 
@@ -3936,28 +3937,25 @@ function _fsCallAPI(){
   Promise.all(files.map(function(f){ return _fsExtractText(f); }))
   .then(function(extracted){
 
-    // PHASE 2: pré-filtrage intelligent si beaucoup de fichiers
+    // PHASE 2: sélection intelligente des fichiers à analyser en profondeur
     _fsProgressBar(30, 'Analyse du contexte…', null);
-    if(thinkEl) thinkEl.textContent = 'Analyse du contexte…';
+    if(thinkEl) thinkEl.textContent = 'Sélection des fichiers pertinents…';
 
-    // PHASE 1: filtrage par titre (instantané, sans ouvrir les fichiers)
     var titleRanked = _fsFilterByTitle(lastUserMsg, files);
     var titleHits = titleRanked.filter(function(x){ return x.titleScore > 0; });
-    var titleMsg = '';
-    if(titleHits.length > 0 && titleHits.length < files.length){
-      titleMsg = '\uD83D\uDD0D Titres correspondants trouvés : ' + titleHits.slice(0,5).map(function(x){ return files[x.i].name; }).join(', ');
-      var thinkEl2 = document.getElementById('fs-thinking-text');
-      if(thinkEl2) thinkEl2.textContent = titleMsg;
-    }
 
-    // PHASE 2: si des fichiers matchent par titre, les prioriser dans le contenu
-    // Sinon, utiliser le filtre de contenu standard
+    // Stratégie : ≤30 fichiers → tous analysés ; >30 → top 30 par pertinence
+    var MAX_DEEP = 30;
     var relevantIdx;
-    if(titleHits.length >= 2 && titleHits.length <= 8){
-      // Utiliser uniquement les fichiers avec un bon titre match → ouvrir leur contenu
-      relevantIdx = titleHits.slice(0, 8).map(function(x){ return x.i; });
+    if(files.length <= MAX_DEEP){
+      relevantIdx = extracted.map(function(_,i){ return i; });
+    } else if(titleHits.length >= 2){
+      var titleIdxSet = titleHits.slice(0, MAX_DEEP).map(function(x){ return x.i; });
+      var contentIdx = _fsPreFilter(lastUserMsg, extracted, files);
+      var combined = titleIdxSet.slice();
+      contentIdx.forEach(function(i){ if(combined.indexOf(i)<0 && combined.length<MAX_DEEP) combined.push(i); });
+      relevantIdx = combined;
     } else {
-      // Pas de match titre clair → recherche dans le contenu de tous
       relevantIdx = _fsPreFilter(lastUserMsg, extracted, files);
     }
 
@@ -3965,88 +3963,90 @@ function _fsCallAPI(){
       return acc + ((extracted[i] && extracted[i].text) ? extracted[i].text.length : 0);
     }, 0);
 
-    // Afficher la progress bar avec estimation
     _fsShowProgress(files.length, totalChars);
-    var phaseLabel = titleHits.length > 0
-      ? 'Analyse de ' + relevantIdx.length + ' fichier(s) pré-filtré(s) par titre…'
-      : 'Analyse de ' + relevantIdx.length + '/' + files.length + ' fichiers pertinents…';
-    _fsProgressBar(35, phaseLabel, null);
+    _fsProgressBar(38, 'Lecture approfondie de ' + relevantIdx.length + '/' + files.length + ' fichiers…', null);
+    if(thinkEl) thinkEl.textContent = 'Claude Opus lit ' + relevantIdx.length + ' fichier(s) en profondeur…';
+
+    // Limite chars par fichier adaptée (contexte 200K tokens Opus)
+    var maxCharsPerFile = relevantIdx.length > 20 ? 6000 : relevantIdx.length > 10 ? 10000 : 18000;
 
     var fileCtxParts = [], pdfBlocks = [];
-    var maxCharsPerFile = relevantIdx.length > 8 ? 800 : relevantIdx.length > 5 ? 1500 : relevantIdx.length > 3 ? 2000 : 3000;
-
     relevantIdx.forEach(function(i){
       var res = extracted[i];
       var f = files[i];
-      var hdr = 'FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" ('+(f.toolName||'outil')+')';
+      var dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('fr-FR') : '';
+      var hdr = 'FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'"'+(f.toolName?' ('+f.toolName+')':'')+(dateStr?' ['+dateStr+']':'');
       if(res.type === 'pdf'){
-        if(res.b64 && res.b64.length < 1400000 && pdfBlocks.length < 2){
-          pdfBlocks.push({header:hdr, b64:res.b64, mime:res.mime});
-          fileCtxParts.push(hdr + ': [PDF joint]');
+        // Jusqu'à 5 PDFs en document natif Anthropic
+        if(res.b64 && res.b64.length < 1800000 && pdfBlocks.length < 5){
+          pdfBlocks.push({header:hdr, b64:res.b64, mime:res.mime||'application/pdf'});
+          fileCtxParts.push(hdr + ': [PDF joint en document natif pour lecture complète]');
         } else {
-          fileCtxParts.push(hdr + ': [PDF trop volumineux – ' + Math.round((res.b64||'').length*0.75/1024) + 'KB]');
+          fileCtxParts.push(hdr + ': [PDF – ' + Math.round((res.b64||'').length*0.75/1024) + 'KB – trop volumineux]');
         }
       } else {
-        var txt = (res.text || '[Vide]').slice(0, maxCharsPerFile);
+        var txt = (res.text || '[Contenu vide]').slice(0, maxCharsPerFile);
         fileCtxParts.push(hdr + ':\n' + txt);
       }
     });
 
-    // Fichiers non pertinents : juste le nom
+    // Fichiers hors sélection : mentionnés pour contexte
     extracted.forEach(function(res, i){
       if(relevantIdx.indexOf(i) < 0){
         var f = files[i];
-        fileCtxParts.push('FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" : [non pertinent pour cette requête – ignoré]');
+        fileCtxParts.push('FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" : [présent – non analysé en profondeur pour cette requête]');
       }
     });
 
     var fileCtx = fileCtxParts.join('\n\n---\n\n');
     var sys = [
-      'Tu es un expert en analyse de documents RH et financiers (CVs, credentials, fiches de poste, rapports).',
-      'Tu analyses ' + files.length + ' fichier(s). Réponds TOUJOURS en français, de manière précise et structurée.',
+      'Tu es un expert en analyse documentaire disposant du CONTENU RÉEL des fichiers de l\'utilisateur.',
+      'Fichiers disponibles : ' + files.length + '. Fichiers analysés en profondeur : ' + relevantIdx.length + '.',
+      'Réponds TOUJOURS en français, avec précision. Cite les passages exacts quand pertinent.',
       '',
-      'RÈGLES DE RÉPONSE:',
-      '- Si on cherche des correspondances/matches: analyse chaque fichier pertinent en détail et ajoute <MATCHES>[...]</MATCHES> à la fin.',
-      '- Si on demande une analyse ou synthèse: réponds en texte structuré, sans JSON.',
-      '- Pour les recherches par mots-clés: cite les passages exacts trouvés.',
+      'RÈGLES STRICTES :',
+      '- Lis et analyse vraiment le contenu de chaque fichier fourni.',
       '- Ne jamais inventer d\'informations absentes des fichiers.',
+      '- Cite les noms de fichiers exacts dans tes réponses.',
+      '- Pour les recherches de correspondance (matching CV/poste, credentials, etc.) : analyse chaque fichier en détail.',
+      '- Si un élément est trouvé, cite le passage exact du fichier.',
       '',
-      'FORMAT MATCHES (obligatoire si recherche de correspondance):',
-      '<MATCHES>[{"id":"id_fichier","name":"nom.ext","score":85,"reason":"Explication courte"}]</MATCHES>',
-      'Score 0-100, uniquement score>30, triés par score décroissant. Maximum 10 résultats.',
+      'FORMAT MATCHES (à ajouter si l\'utilisateur cherche des fichiers correspondants) :',
+      '<MATCHES>[{"id":"id_exact_du_fichier","name":"nom_exact.ext","score":85,"reason":"Raison précise avec extrait trouvé"}]</MATCHES>',
+      'Score 0-100 (inclure uniquement score>30), triés par score décroissant, max 15 résultats.',
       '',
-      'FICHIERS (' + relevantIdx.length + ' analysés sur ' + files.length + ' disponibles):',
+      'CONTENU DES FICHIERS :',
       '',
       fileCtx
     ].join('\n');
 
-    // Historique limité aux 4 derniers échanges
-    var histSlice = _fsChat.history.slice(-8);
+    // Historique (6 derniers échanges)
+    var histSlice = _fsChat.history.slice(-12);
     var msgs = histSlice.slice();
 
-    // Injecter les PDFs dans le dernier message user
+    // Injecter les PDFs natifs dans le dernier message user
     if(pdfBlocks.length && msgs.length > 0){
       var last = msgs[msgs.length-1];
       if(last.role === 'user' && typeof last.content === 'string'){
         var blocks = [{type:'text', text:last.content}];
         pdfBlocks.forEach(function(p){
-          blocks.push({type:'document', source:{type:'base64', media_type:p.mime||'application/pdf', data:p.b64}, title:p.header});
+          blocks.push({type:'document', source:{type:'base64', media_type:p.mime, data:p.b64}, title:p.header});
         });
         msgs[msgs.length-1] = {role:'user', content:blocks};
       }
     }
 
-    // PHASE 3: appel API avec AbortController
-    _fsProgressBar(55, 'Envoi à l\'IA…', null);
-    if(thinkEl) thinkEl.textContent = 'Analyse en cours…';
+    // PHASE 3: appel Claude Opus (meilleur modèle Anthropic)
+    _fsProgressBar(55, 'Envoi à Claude Opus pour analyse approfondie…', null);
+    if(thinkEl) thinkEl.textContent = 'Claude Opus analyse vos fichiers…';
 
     _fsAbortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var fetchOpts = {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: files.length > 8 ? 2000 : 3000,
+        model: 'claude-opus-4-8',
+        max_tokens: 6000,
         system: sys,
         messages: msgs
       })
@@ -4164,13 +4164,24 @@ function _fsExtractText(f){
     var cnt = f.content || '';
     var name = (f.name||'').toLowerCase();
     var ext = name.split('.').pop();
-    // Fichier deja texte (gros fichier pre-extrait)
+    // Fichier stocké localement uniquement → tenter IndexedDB en priorité
+    if(!cnt || cnt === '__LOCAL_ONLY__'){
+      _idbGetFile(f.id, function(idbContent){
+        if(idbContent && idbContent !== '__LOCAL_ONLY__' && idbContent.length > 10){
+          _fsExtractText(Object.assign({}, f, {content: idbContent, _isTextOnly: false})).then(resolve);
+        } else {
+          resolve({type:'text', text:'[Fichier "'+f.name+'" – contenu local non accessible pour cette session]'});
+        }
+      });
+      return;
+    }
+    // Fichier deja texte (gros fichier pre-extrait ou texte brut)
     if(f._isTextOnly || (typeof cnt==='string' && !cnt.startsWith('data:') && cnt.length>20)){
-      resolve({type:'text', text: cnt.slice(0,5000)});
+      resolve({type:'text', text: cnt.slice(0,20000)});
       return;
     }
     if(!cnt.startsWith('data:')){
-      resolve({type:'text', text: cnt.slice(0,4000)});
+      resolve({type:'text', text: cnt.slice(0,20000)});
       return;
     }
     var parts = cnt.split(',');
@@ -4199,13 +4210,13 @@ function _fsExtractText(f){
                 .replace(/<w:p[ >]/g,'\n').replace(/<w:br[^>]*>/g,'\n').replace(/<w:tab[^>]*>/g,' ')
                 .replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
                 .replace(/&quot;/g,'"').replace(/&#x[0-9A-Fa-f]+;/g,' ')
-                .replace(/\n{3,}/g,'\n\n').trim().slice(0,5000);
+                .replace(/\n{3,}/g,'\n\n').trim().slice(0,20000);
               resolve({type:'text', text:text||'[Document vide]'});
             }).catch(function(){ resolve({type:'text',text:'[Erreur XML]'}); });
           } else { resolve({type:'text',text:'[Structure ZIP non reconnue]'}); }
         }).catch(function(){
           try{
-            var raw=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,3000);
+            var raw=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,10000);
             resolve({type:'text',text:raw||'[Binaire illisible]'});
           }catch(e){ resolve({type:'text',text:'[Fichier illisible]'}); }
         });
@@ -4216,13 +4227,13 @@ function _fsExtractText(f){
     var isText=(mime.indexOf('text')>=0||mime.indexOf('json')>=0||mime.indexOf('csv')>=0||
                 ext2==='txt'||ext2==='csv'||ext2==='json');
     if(isText){
-      try{ resolve({type:'text',text:atob(b64).slice(0,4000)}); }
-      catch(e){ resolve({type:'text',text:cnt.slice(0,4000)}); }
+      try{ resolve({type:'text',text:atob(b64).slice(0,20000)}); }
+      catch(e){ resolve({type:'text',text:cnt.slice(0,20000)}); }
       return;
     }
     // Fallback
     try{
-      var raw2=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,3000);
+      var raw2=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,10000);
       resolve({type:'text',text:raw2||'[Contenu binaire]'});
     }catch(e){ resolve({type:'text',text:'[Fichier: '+Math.round(b64.length*0.75/1024)+'KB]'}); }
   });
@@ -4872,7 +4883,7 @@ function _extractTextSync(dataUrl, fname){
   // Fallback texte générique
   try{
     var raw = atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').trim();
-    if(raw.length > 50) return 'text:'+raw.slice(0,3000);
+    if(raw.length > 50) return 'text:'+raw.slice(0,10000);
   } catch(e){}
 
   return '__LOCAL_ONLY__';
