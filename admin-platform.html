@@ -1704,12 +1704,12 @@ function processTF(file){
   var r=new FileReader();
   r.onload=function(e){
     draftFile={name:file.name,size:file.size,type:ext,raw:e.target.result};
-    $('mdrop').classList.add('has');$('md-ico').textContent=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
+    $('mdrop').classList.add('has');$('md-ico').innerHTML=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
     $('t-fprev').style.display='flex';$('t-fpi').textContent=fIco(file.name);$('t-fpn').textContent=file.name;$('t-fps').textContent=fmtSz(file.size);
   };
   if(ext==='zip')r.readAsArrayBuffer(file);else r.readAsText(file);
 }
-function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').textContent='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
+function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').innerHTML='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
 function addStep(){draftSteps.push({id:'s'+uid(),name:'',type:'System Prompt',prompt:''});renderSteps()}
 function renderSteps(){
   $('step-draft').innerHTML=draftSteps.map(function(s,i){
@@ -1851,7 +1851,6 @@ function editTool(id){
   editingToolId=id;
   // Pre-fill the modal
   $('t-n').value=t.name||'';
-  $('t-i').value=t.icon||'';
   $('t-d').value=t.desc||'';
   if(t.type==='ai'){
     setTT('ai');
@@ -1863,21 +1862,20 @@ function editTool(id){
     draftFile=null;
     clearTF();
     if(t.htmlContent){
-      // Show current file info
-      $('md-ico').textContent='&#127760;';
+      // File present — show info + download button
+      $('md-ico').innerHTML='&#127760;';
       $('md-t').textContent='Fichier actuel';
-      $('md-s').textContent=t.name+'.html - '+fmtSz(t.htmlContent.length);
+      $('md-s').textContent=(t.fileName||t.name+'.html')+' — '+fmtSz(t.htmlContent.length);
       $('mdrop').classList.add('has');
-      // Show download button for existing file
       var existingDl=document.getElementById('edit-tool-dl');
       if(!existingDl){
         existingDl=document.createElement('button');
         existingDl.id='edit-tool-dl';
         existingDl.className='btn btn-g';
         existingDl.style.cssText='margin-top:8px;width:100%;font-size:12px';
-        existingDl.textContent='↓ Télécharger le fichier actuel';
         $('mdrop').parentNode.insertBefore(existingDl,$('mdrop').nextSibling);
       }
+      existingDl.textContent='↓ Télécharger le fichier actuel';
       var _tName=t.name;var _tHtml=t.htmlContent;
       existingDl.onclick=function(){
         var blob=new Blob([_tHtml],{type:'text/html;charset=utf-8'});
@@ -1889,9 +1887,18 @@ function editTool(id){
         toast('↓ Fichier téléchargé');
       };
     } else {
+      // File content lost — show last known metadata + prompt to re-upload
       var old=document.getElementById('edit-tool-dl');if(old)old.remove();
+      $('md-ico').innerHTML='&#9888;';
+      $('md-t').textContent='Fichier non disponible';
+      var metaInfo=t.fileName?(t.fileName+(t.fileSize?' — '+fmtSz(t.fileSize):'')):'Rechargez le fichier HTML ou ZIP';
+      $('md-s').textContent=metaInfo;
+      $('mdrop').classList.add('has');
     }
   }
+  // Set icon AFTER setTT (which resets it to default)
+  $('t-i').value=t.icon||'';
+  var disp=$('t-i-display');if(disp)disp.textContent=t.icon||'🤖';
   // Change modal title and button
   var mttl=document.querySelector('#ov-tool .mttl');
   if(mttl)mttl.textContent="Modifier l'outil";
