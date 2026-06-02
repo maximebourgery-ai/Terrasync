@@ -4583,6 +4583,9 @@ function _doLoginCheck(e, p){
 }
 
 function showForcedPasswordChange(){
+  // Éviter le double-affichage si déjà présent
+  var existing=document.getElementById('forced-pwd-change');
+  if(existing)existing.remove();
   // Hide all login forms, show forced change overlay
   ['pfl','pfr','pff','pfrs'].forEach(function(id){var el=$(id);if(el)el.style.display='none'});
   ['ptl','ptr','ptf'].forEach(function(id){var el=$(id);if(el)el.classList.remove('on')});
