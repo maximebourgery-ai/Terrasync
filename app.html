@@ -848,6 +848,7 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
           <button class="p-btn" id="p-btn-forgot">ENVOYER &rarr;</button>
         </div>
         <div id="pfrs" style="display:none">
+          <input type="text" id="p-np-username" autocomplete="username" style="display:none" aria-hidden="true" tabindex="-1">
           <label class="p-label">Nouveau mot de passe</label>
           <div style="position:relative">
             <input class="p-input" id="p-np" type="password" placeholder="Minimum 6 caracteres" autocomplete="new-password" style="padding-right:44px">
@@ -3527,7 +3528,7 @@ function openFileSearchChat(){
   ov.innerHTML=
     '<div style="width:100%;max-width:700px;height:min(80vh,calc(100dvh - 40px));background:#0f1117;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 40px rgba(0,0,0,.6)">'+
     '<div style="padding:14px 20px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">'+
-    '<div><div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff">&#129302; Recherche IA</div>'+
+    '<div><div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff">&#129302; Recherche IA <span style="font-size:10px;font-weight:600;opacity:.5;font-family:var(--bfnt)">Claude Opus</span></div>'+
     '<div id="fs-status" style="font-size:11px;color:rgba(255,255,255,.4)">Chargement depuis Supabase\u2026</div></div>'+
     '<div style="display:flex;gap:8px">'+
     '<button onclick="_toggleFsCompact()" style="background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.6);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer" title="Agrandir/Réduire">&#9635;</button>'+
@@ -3538,7 +3539,7 @@ function openFileSearchChat(){
     '<div id="fs-progress-container" style="display:none;margin-bottom:10px"></div>'+
     '<div id="fs-suggestions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>'+
     '<div style="display:flex;gap:8px">'+
-    '<input id="fs-input" placeholder="D\u00e9crivez ce que vous cherchez\u2026" style="flex:1;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;outline:none;font-family:var(--bfnt)">'+
+    '<input id="fs-input" placeholder="Ex: \u00ab\u00a0Trouve un CF SIE disponible\u00a0\u00bb ou collez une fiche de poste\u2026" style="flex:1;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;outline:none;font-family:var(--bfnt)">'+
     '<button id="fs-send-btn" onclick="_fsSend()" style="background:'+col+';border:none;color:#fff;border-radius:10px;padding:10px 18px;font-family:var(--cfnt);font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0">Envoyer \u25b6</button>'+
     '</div></div></div>';
   document.body.appendChild(ov);
@@ -3552,10 +3553,8 @@ function _fsLoadFilesCloud(){
   var st=document.getElementById('fs-status');
   if(st)st.textContent='Chargement depuis Supabase\u2026';
   jbPullFiles(portalCid,function(files){
-    var readable=files.filter(function(f){
-      var c=f.content||'';
-      return c.length>10 && c!=='__LOCAL_ONLY__';
-    });
+    // Inclure TOUS les fichiers valides (y compris __LOCAL_ONLY__ \u2192 IDB fallback dans _fsExtractText)
+    var readable=files.filter(function(f){ return !!(f.name||f.id); });
     // Enrichir les fichiers text: avec leur type
     readable=readable.map(function(f){
       if((f.content||'').startsWith('text:')){
@@ -3564,10 +3563,10 @@ function _fsLoadFilesCloud(){
       return f;
     });
     _fsChat.files=readable;
-    var skipped=files.filter(function(f){return (f.content||'')==='__LOCAL_ONLY__';}).length;
+    var localOnly=files.filter(function(f){return (f.content||'')==='__LOCAL_ONLY__';}).length;
     if(st){
-      var msg=readable.length+' fichier(s) cloud charg\u00e9(s)';
-      if(skipped>0)msg+=' \u2022 '+skipped+' inaccessibles';
+      var msg=readable.length+' fichier(s) charg\u00e9(s)';
+      if(localOnly>0)msg+=' \u2022 '+localOnly+' en lecture locale (IndexedDB)';
       st.textContent=msg;
     }
     if(!readable.length){
@@ -3577,23 +3576,31 @@ function _fsLoadFilesCloud(){
       );
       return;
     }
-    var byTool={};
-    readable.forEach(function(f){var t=f.toolName||'Outil';if(!byTool[t])byTool[t]=0;byTool[t]++;});
-    var summary=Object.keys(byTool).map(function(t){return byTool[t]+'\u00a0'+t;}).join(', ');
-    _fsAddMsg('assistant',
-      'Bonjour\u00a0! J\u2019ai charg\u00e9 **'+readable.length+' fichier(s)** depuis Supabase\u00a0:\n'+summary+'\n\n'+
-      '**Que recherchez-vous ?**\n\n'+
-      '\u2022 Collez une fiche de poste pour trouver des CVs qui matchent\n'+
-      '\u2022 Chercher des credentials avec certaines comp\u00e9tences\n'+
-      '\u2022 Rechercher par mots-cl\u00e9s dans vos documents\n'+
-      '\u2022 Comparer ou analyser plusieurs fichiers'
-    );
-    _fsShowSuggestions([
-      'Trouver des CVs pour ce poste',
-      'Chercher par comp\u00e9tences',
-      'Analyser mes credentials',
-      'Comparer mes documents'
-    ]);
+    // Classifier les fichiers pour le message d'accueil
+    var byType={}, byTool={};
+    readable.forEach(function(f){
+      var cls = _fsClassifyFile(f, '');
+      byType[cls.label] = (byType[cls.label]||0)+1;
+      var t=f.toolName||'';
+      if(t&&t!=='Outil'){ byTool[t]=(byTool[t]||0)+1; }
+    });
+    var typeSummary = Object.keys(byType).map(function(k){ return '**'+byType[k]+'** '+k; }).join(' · ');
+    var toolSummary = Object.keys(byTool).slice(0,6).map(function(t){ return byTool[t]+'× '+t; }).join(', ');
+    var _greetClient = S.clients.find(function(x){return x.id===portalCid;});
+    var _greetName = _greetClient ? _greetClient.name : '';
+
+    var greetMsg = 'Bonjour ! Je suis votre assistant de recherche documentaire'
+      + (_greetName ? ' pour **'+_greetName+'**' : '') + '.\n\n'
+      + 'J\u2019ai analys\u00e9 **'+readable.length+' fichier(s)** :\n' + typeSummary
+      + (toolSummary ? '\n_Sources : '+toolSummary+'_' : '')
+      + '\n\n**Ce que je peux faire :**\n'
+      + '\u2022 Collez une fiche de poste \u2192 je trouve les CVs/credentials qui matchent\n'
+      + '\u2022 Cherchez un profil ("CF fonctionnel SIE") \u2192 je croise webapps + CVs + sourcings\n'
+      + '\u2022 Recherche par comp\u00e9tences, secteur, ou mots-cl\u00e9s dans le contenu r\u00e9el\n'
+      + '\u2022 Analyse et comparaison de vos documents de sourcing';
+
+    _fsAddMsg('assistant', greetMsg);
+    _fsShowTemplates();
   });
 }
 
@@ -3847,21 +3854,24 @@ function _fsFilterByTitle(query, files){
 
 // ── Phase 2 : pré-filtrage dans le contenu extrait ────────────────────────────
 function _fsPreFilter(query, extracted, files){
-  if(files.length <= 4) return extracted.map(function(_,i){ return i; });
+  if(files.length <= 30) return extracted.map(function(_,i){ return i; });
   var qWords = query.toLowerCase().split(/\s+/).filter(function(w){ return w.length > 2; });
   if(!qWords.length) return extracted.map(function(_,i){ return i; });
 
   var scored = extracted.map(function(res, i){
     var text = (res.text || '').toLowerCase();
+    var fname = (files[i].name || '').toLowerCase();
     var score = qWords.reduce(function(acc, w){
       var re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'g');
-      return acc + (text.match(re) || []).length;
+      var contentHits = (text.match(re) || []).length;
+      var nameHits = (fname.match(re) || []).length * 5;
+      return acc + contentHits + nameHits;
     }, 0);
     return { i: i, contentScore: score };
   });
 
   scored.sort(function(a, b){ return b.contentScore - a.contentScore; });
-  var topN = Math.max(5, Math.min(8, files.length));
+  var topN = Math.min(30, files.length);
   return scored.slice(0, topN).map(function(s){ return s.i; });
 }
 
@@ -3893,18 +3903,341 @@ function _fsSend(){
   if(!msg) return;
   // Déduire 1 crédit par message envoyé (la session a déjà coûté ai_search)
   if(portalCid && _fsChat.history.length > 0){
-    // Chaque message suivant l'ouverture coûte 1 cr (haiku usage)
     if(!deductCredits(portalCid,'ai_haiku')) return;
   }
   inp.value = '';
+  inp.style.borderColor = 'rgba(255,255,255,.12)';
+
+  // Détecter l'intention et enrichir le message avant envoi
+  var _intent = _fsDetectIntent(msg, _fsChat.files);
+  var _fileClassifs = (_fsChat.files||[]).map(function(f){ return _fsClassifyFile(f,''); });
+  var _enriched = _fsEnrichQuery(msg, _intent, _fsChat.files, _fileClassifs);
+
+  // Afficher le message brut à l'utilisateur, envoyer l'enrichi à l'API
   _fsAddMsg('user', msg);
-  _fsChat.history.push({role:'user', content:msg});
+  // Badge d'intention détectée (discret, sous le message)
+  var _intentBadge = document.createElement('div');
+  _intentBadge.style.cssText = 'text-align:right;font-size:10px;color:rgba(255,255,255,.3);margin-top:-8px;margin-bottom:6px;padding-right:4px';
+  _intentBadge.textContent = '🎯 ' + _intent.label;
+  var msgs = document.getElementById('fs-messages');
+  if(msgs) msgs.appendChild(_intentBadge);
+
+  _fsChat.history.push({role:'user', content:_enriched});
   document.getElementById('fs-suggestions').innerHTML = '';
   _fsChat.loading = true;
   var btn = document.getElementById('fs-send-btn');
   if(btn) btn.disabled = true;
   _fsThinking();
   _fsCallAPI();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// CLASSIFICATION DE FICHIERS + SYSTEM PROMPT RICHE
+// Construit un prompt contextuel avec profil client, webapps, domaine
+// ═══════════════════════════════════════════════════════════════════
+
+
+// ════════════════════════════════════════════════════════════════
+// DÉTECTION D'INTENTION + ENRICHISSEMENT DE REQUÊTE
+// ════════════════════════════════════════════════════════════════
+
+function _fsDetectIntent(query, files){
+  var q = query.toLowerCase();
+  var wordCount = query.trim().split(/\s+/).length;
+
+  // Fiche de poste collée (long texte avec mots-clés RH)
+  var jobPostingSignals = [
+    /\b(poste|mission|profil recherch|contexte|objectif|responsabilit|compétences? requises?|expérience requise|années? d.expérience|formation|diplôme|niveau bac|salaire|rémunération|localisation|télétravail|ref\s*:|intitulé)\b/i,
+    /\b(nous recherchons|rejoindre|notre équipe|candidat|postul|lettre de motivation)\b/i,
+  ];
+  var isJobPosting = wordCount > 30 && jobPostingSignals.some(function(re){ return re.test(query); });
+
+  // Recherche de profil spécifique
+  var isProfileSearch = /\b(cf|consultant fonctionnel|chargé de formation|consultant|candidat|profil|cv|curriculum)\b/i.test(q)
+    && /\b(pour|avec|ayant|spécialisé|expert|sénior|junior|confirmé|disponible|cherche|trouve|besoin)\b/i.test(q);
+
+  // Code webapp ou nom d'outil dans la requête
+  var toolNames = (files||[]).map(function(f){ return (f.toolName||'').toLowerCase(); }).filter(Boolean);
+  var mentionsWebapp = toolNames.some(function(t){ return t.length > 3 && q.indexOf(t.slice(0,6)) >= 0; })
+    || /\b(webapp|outil|taleo|sourcing|analyse missions?|credential)\b/i.test(q);
+
+  // Demande d'analyse ou de synthèse
+  var isAnalysis = /\b(analyse|synthèse|résume|résumé|liste|donne-moi|montre|affiche|quels? sont|combien)\b/i.test(q)
+    && !isJobPosting;
+
+  // Mots-clés courts
+  var isKeyword = wordCount <= 10 && !isJobPosting && !isProfileSearch;
+
+  if(isJobPosting)    return { type: 'job_matching',    label: 'Matching fiche de poste → CVs/credentials' };
+  if(isProfileSearch) return { type: 'profile_search',  label: 'Recherche de profil' };
+  if(mentionsWebapp)  return { type: 'webapp_search',   label: 'Recherche par webapp' };
+  if(isAnalysis)      return { type: 'analysis',        label: 'Analyse/synthèse' };
+  if(isKeyword)       return { type: 'keyword',         label: 'Recherche par mots-clés' };
+  return              { type: 'general',               label: 'Recherche générale' };
+}
+
+function _fsEnrichQuery(userMsg, intent, files, fileClassifications){
+  // Construire un contexte d'intention qui précède le message utilisateur
+  // pour que l'IA sache exactement quelle stratégie appliquer
+  var strategies = {
+    'job_matching': [
+      '[STRATÉGIE DÉTECTÉE : MATCHING FICHE DE POSTE]',
+      'L\'utilisateur a fourni une fiche de poste / description de besoin.',
+      'ACTIONS OBLIGATOIRES sans demander confirmation :',
+      '1. Identifier les compétences clés, secteur, niveau, type de mission dans ce texte.',
+      '2. Analyser TOUS les CVs, credentials et sourcings disponibles.',
+      '3. Scorer chaque profil par rapport aux exigences (compétences, secteur, expérience).',
+      '4. Retourner les MATCHES ordonnés avec raison précise et extrait du fichier.',
+      '5. Pour les 3 meilleurs : décrire en détail pourquoi ils correspondent.',
+      '',
+      'FICHE DE POSTE / BESOIN DE L\'UTILISATEUR :'
+    ].join('\n'),
+    'profile_search': [
+      '[STRATÉGIE DÉTECTÉE : RECHERCHE DE PROFIL]',
+      'L\'utilisateur cherche un type de profil spécifique (consultant, CF, candidat...).',
+      'ACTIONS OBLIGATOIRES sans demander confirmation :',
+      '1. Identifier le type de profil, secteur et niveau demandés.',
+      '2. Chercher dans : CVs + credentials + fichiers des webapps de sourcing.',
+      '3. Décoder les noms de fichiers (ex: CF_SIE = Consultant Fonctionnel secteur SIE).',
+      '4. Retourner les MATCHES avec extrait du contenu réel du fichier.',
+      '',
+      'REQUÊTE UTILISATEUR :'
+    ].join('\n'),
+    'webapp_search': [
+      '[STRATÉGIE DÉTECTÉE : RECHERCHE PAR WEBAPP/OUTIL]',
+      'L\'utilisateur cherche des fichiers produits par une webapp spécifique.',
+      'ACTIONS OBLIGATOIRES :',
+      '1. Identifier quelle(s) webapp(s) sont mentionnées ou implicites.',
+      '2. Afficher les fichiers de ces webapps avec leur contenu résumé.',
+      '3. Croiser avec d\'autres fichiers pertinents si utile.',
+      '',
+      'REQUÊTE UTILISATEUR :'
+    ].join('\n'),
+    'analysis': [
+      '[STRATÉGIE DÉTECTÉE : ANALYSE/SYNTHÈSE]',
+      'L\'utilisateur veut une analyse ou synthèse des documents.',
+      'ACTIONS OBLIGATOIRES :',
+      '1. Lire le contenu réel des fichiers concernés.',
+      '2. Produire une synthèse structurée sans inventer.',
+      '3. Citer les sources (noms de fichiers) pour chaque information.',
+      '',
+      'REQUÊTE UTILISATEUR :'
+    ].join('\n'),
+    'keyword': [
+      '[STRATÉGIE DÉTECTÉE : RECHERCHE PAR MOTS-CLÉS]',
+      'L\'utilisateur cherche des fichiers contenant ces termes spécifiques.',
+      'ACTIONS OBLIGATOIRES :',
+      '1. Chercher ces termes dans le contenu de TOUS les fichiers fournis.',
+      '2. Citer les passages exacts où ces termes apparaissent.',
+      '3. Retourner les MATCHES avec le passage extrait.',
+      '',
+      'MOTS-CLÉS RECHERCHÉS :'
+    ].join('\n'),
+  };
+
+  var prefix = strategies[intent.type] || strategies['keyword'];
+  return prefix + '\n\n' + userMsg;
+}
+
+// Templates de recherche guidés
+var _fsTemplates = [
+  {
+    icon: '📋',
+    label: 'Matcher une fiche de poste',
+    hint: 'Coller une offre → l\'IA trouve les CVs qui correspondent',
+    template: 'Voici la fiche de poste, trouve les profils qui correspondent le mieux :\n\n[COLLEZ LA FICHE DE POSTE ICI]'
+  },
+  {
+    icon: '👤',
+    label: 'Chercher un profil',
+    hint: 'Type de consultant, secteur, niveau d\'expérience',
+    template: 'Cherche un consultant avec ce profil :\n- Type : (ex: CF, Consultant Fonctionnel, Chargé de Formation)\n- Secteur / domaine : (ex: SIE, FER, ALM, DSI)\n- Niveau : (ex: Senior, 5+ ans, confirmé)\n- Disponibilité : (ex: immédiate, janvier 2026)\n- Compétences clés : '
+  },
+  {
+    icon: '🌐',
+    label: 'Résultats d\'une webapp',
+    hint: 'Voir ce qu\'une webapp a produit comme fichiers',
+    template: 'Montre-moi et analyse les fichiers produits par la webapp : [NOM DE LA WEBAPP]\n\nRésume le contenu et identifie les profils ou informations clés trouvés.'
+  },
+  {
+    icon: '📊',
+    label: 'Analyser les missions',
+    hint: 'Synthèse des missions disponibles ou en cours',
+    template: 'Analyse les missions disponibles dans mes fichiers et donne-moi :\n1. La liste des missions avec leur secteur et niveau requis\n2. Les profils disponibles dans mes CVs/credentials qui pourraient correspondre\n3. Les gaps éventuels (missions sans profil correspondant)'
+  }
+];
+
+function _fsShowTemplates(){
+  var el = document.getElementById('fs-suggestions');
+  if(!el) return;
+  var inp = document.getElementById('fs-input');
+  el.innerHTML = _fsTemplates.map(function(t, i){
+    return '<button onclick="_fsApplyTemplate('+i+')" title="'+t.hint+'" style="'
+      + 'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);'
+      + 'color:rgba(255,255,255,.8);border-radius:10px;padding:6px 12px;font-size:11px;'
+      + 'cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;'
+      + 'transition:background .15s">'
+      + '<span style="font-size:14px">'+t.icon+'</span>'
+      + '<div style="text-align:left"><div style="font-weight:700;font-size:11px">'+t.label+'</div>'
+      + '<div style="font-size:10px;opacity:.55;margin-top:1px">'+t.hint+'</div></div>'
+      + '</button>';
+  }).join('');
+  el.style.flexWrap = 'wrap';
+  el.style.gap = '6px';
+}
+
+function _fsApplyTemplate(idx){
+  var t = _fsTemplates[idx];
+  if(!t) return;
+  var inp = document.getElementById('fs-input');
+  if(!inp) return;
+  inp.value = t.template;
+  inp.focus();
+  // Scroll à la fin pour que l'utilisateur voie où compléter
+  inp.selectionStart = inp.selectionEnd = inp.value.length;
+  // Style visuel : border colorée pour indiquer qu'il faut compléter
+  var c = S.clients.find(function(x){ return x.id===portalCid; });
+  var col = (c&&c.color)||'#3a5a28';
+  inp.style.borderColor = col;
+}
+
+function _fsClassifyFile(f, text){
+  var name = (f.name||'').toLowerCase().replace(/[_\-\.]/g,' ');
+  var tool = (f.toolName||'').toLowerCase();
+  var combined = name + ' ' + tool + ' ' + (text||'').toLowerCase().slice(0,500);
+
+  // Patterns de classification
+  if(/\b(cv|curriculum|resume|candidat|profil candidat|experience pro)\b/.test(combined) ||
+     /taleo.sourcing/i.test(f.name||'') ||
+     /sourcing.*(cv|profil|candidat)/i.test(combined)){
+    return {type:'cv', label:'CV / Profil candidat'};
+  }
+  if(/\b(fiche.?de.?poste|job.?descr|offre.?emploi|appel.?offre|cahier.?des.?charges|cdc)\b/.test(combined)){
+    return {type:'fiche_poste', label:'Fiche de poste / Offre'};
+  }
+  if(/\b(credential|attestation|certif|diplom|habilit|accréditation)\b/.test(combined)){
+    return {type:'credential', label:'Credential / Attestation'};
+  }
+  if(/\b(analyse|bilan|synthèse|rapport|mission|compte.?rendu)\b/.test(combined) ||
+     /^analyse_/i.test(f.name||'')){
+    return {type:'rapport', label:'Rapport / Analyse'};
+  }
+  if(/\bcf\b/.test(combined) || /taleo.*cf/i.test(f.name||'')){
+    return {type:'cf', label:'Document CF (Chargé de Formation)'};
+  }
+  if(/\b(fer|sir|sie|alm|ref|dsi|amoa)\b/.test(combined)){
+    return {type:'secteur_doc', label:'Document sectoriel / Référentiel'};
+  }
+  return {type:'autre', label:'Document divers'};
+}
+
+function _fsBuildSystemPrompt(clientObj, clientTools, files, relevantIdx, fileCtx, fileClassifications){
+  var clientName = (clientObj && clientObj.name) || 'Client';
+  var clientSector = (clientObj && clientObj.sector) || '';
+  var clientNotes = (clientObj && clientObj.notes) || '';
+
+  // Catalogue des webapps du client
+  var toolCatalog = (clientTools||[]).filter(function(t){ return t.status==='deployed'; });
+  var toolLines = toolCatalog.map(function(t){
+    var desc = t.desc ? ' – ' + t.desc : '';
+    var type = t.type==='web'?'[Webapp]':t.type==='masterprompt'?'[IA]':'[Outil]';
+    return '  • ' + type + ' "' + t.name + '"' + desc;
+  });
+
+  // Résumé de classification des fichiers disponibles
+  var typeCount = {};
+  fileClassifications.forEach(function(fc){ typeCount[fc.label] = (typeCount[fc.label]||0)+1; });
+  var typeLines = Object.keys(typeCount).map(function(k){ return '  • '+typeCount[k]+' × '+k; });
+
+  // Mapping webapp → type de contenu produit
+  var webappMappings = [];
+  toolCatalog.forEach(function(t){
+    var tn = (t.name||'').toLowerCase();
+    var filesFromTool = files.filter(function(f){ return (f.toolId===t.id)||(f.toolName===t.name); });
+    if(filesFromTool.length>0){
+      webappMappings.push('  • Webapp "'+t.name+'" → '+filesFromTool.length+' fichier(s) produit(s)');
+    }
+  });
+
+  var lines = [
+    '════════════════════════════════════════════════════════════',
+    'CONTEXTE ENTREPRISE — ' + clientName,
+    '════════════════════════════════════════════════════════════',
+    'Client : ' + clientName,
+    clientSector ? 'Secteur : ' + clientSector : '',
+    clientNotes  ? 'Notes : ' + clientNotes : '',
+    '',
+    'WEBAPPS DÉPLOYÉES POUR CE CLIENT (' + toolCatalog.length + ') :',
+    toolLines.length ? toolLines.join('\n') : '  (aucun outil déployé)',
+    '',
+    webappMappings.length ? 'FICHIERS PAR WEBAPP :\n' + webappMappings.join('\n') : '',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'DOMAINE MÉTIER — CABINET DE CONSEIL / RECRUTEMENT / RH',
+    '════════════════════════════════════════════════════════════',
+    'Ce client opère dans le conseil et/ou le recrutement. Vocabulaire métier :',
+    '  • CF = Chargé(e) de Formation ou Consultant(e) Fonctionnel(le) selon contexte',
+    '  • Credential = Document prouvant une compétence/expérience d\'un consultant',
+    '  • Mission = Prestation/contrat de conseil chez un client final',
+    '  • Sourcing = Recherche et qualification de candidats/consultants',
+    '  • SIE / FER / ALM / DSI / AMOA / MOE = Domaines de compétences ou clients types',
+    '  • Fiche de poste = Description du besoin client à pourvoir',
+    '  • Profil = CV ou credential d\'un consultant/candidat',
+    '',
+    'RÈGLES DE RAISONNEMENT ET CROSS-RÉFÉRENCEMENT :',
+    '1. Si la requête mentionne une webapp (ex: "CF SIE", "Taleo_CF") → chercher AUSSI',
+    '   dans les fichiers produits par cette webapp ET dans les CVs/credentials associés.',
+    '2. Si l\'utilisateur donne une fiche de poste → chercher des CVs et credentials qui matchent',
+    '   les compétences, le secteur, et le niveau d\'expérience demandés.',
+    '3. Si on cherche un consultant pour une mission → croiser CVs + credentials + analyses.',
+    '4. Les noms de fichiers contiennent souvent des codes métier (ex: "CF_SIE_FR" =',
+    '   Consultant Fonctionnel / Secteur SIE / France) → décoder ces codes pour trouver.',
+    '5. Un fichier "Taleo_Sourcing_XXX" = résultat d\'une recherche sourcing = profil identifié.',
+    '6. Un fichier "Analyse_Missions_..." = synthèse des missions disponibles.',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'INVENTAIRE DES FICHIERS DISPONIBLES (' + files.length + ' total)',
+    '════════════════════════════════════════════════════════════',
+    'Répartition par type de document :',
+    typeLines.join('\n'),
+    'Fichiers analysés en profondeur : ' + relevantIdx.length + '/' + files.length,
+    '',
+    '════════════════════════════════════════════════════════════',
+    'RÈGLE ABSOLUE : NE JAMAIS POSER DE QUESTION — TOUJOURS AGIR DIRECTEMENT',
+    '════════════════════════════════════════════════════════════',
+    'Tu dois TOUJOURS chercher et répondre directement, sans jamais demander des précisions.',
+    'Si la requête est ambiguë, fais des hypothèses raisonnables, annonce-les, et cherche.',
+    'INTERDIT : ✗ "Cherchez-vous un CV ou...?" ✗ "Pouvez-vous préciser...?" ✗ "Je ne suis pas sûr..."',
+    'OBLIGATOIRE : ✓ Déduire l\'intention ✓ Annoncer l\'interprétation en 1 ligne ✓ Chercher ✓ Résultats',
+    '',
+    'ARBRE DE DÉCISION (appliquer la stratégie annoncée dans [STRATÉGIE DÉTECTÉE], sinon :) :',
+    'Texte long avec compétences/exigences → MATCHING : analyser CVs/credentials, retourner MATCHES',
+    'Mentionne un type de profil (CF, consultant...) → PROFIL : chercher CVs+credentials+sourcings',
+    'Cite une webapp ou outil → WEBAPP : lister+résumer ces fichiers, croiser si utile',
+    'Demande analyse/synthèse/liste → ANALYSE : synthétiser structurément, citer les sources',
+    'Mots-clés courts → MOTS-CLÉS : chercher ces termes, citer les passages exacts',
+    '',
+    'INSTRUCTIONS DE RÉPONSE :',
+    '- En tête : une ligne indiquant la stratégie appliquée et ton interprétation.',
+    '- Lis le CONTENU RÉEL de chaque fichier. Ne jamais inventer.',
+    '- Cite les noms de fichiers EXACTS et les passages exacts.',
+    '- Réponds en français, de manière structurée et précise.',
+    '',
+    'FORMAT MATCHES (OBLIGATOIRE si recherche de correspondances) :',
+    'Termine ta réponse avec :',
+    '<MATCHES>[{"id":"id_exact","name":"nom_exact.ext","score":85,',
+    '"reason":"Raison précise avec extrait du fichier (cite le passage)"}]</MATCHES>',
+    'Score 0-100, uniquement >30, triés par pertinence décroissante, max 15.',
+    '',
+    '════════════════════════════════════════════════════════════',
+    'CONTENU DES FICHIERS',
+    '════════════════════════════════════════════════════════════',
+    '',
+    fileCtx
+  ].filter(function(l){ return l !== null && l !== undefined; }).join('\n');
+
+  return lines;
 }
 
 function _fsCallAPI(){
@@ -3936,28 +4269,25 @@ function _fsCallAPI(){
   Promise.all(files.map(function(f){ return _fsExtractText(f); }))
   .then(function(extracted){
 
-    // PHASE 2: pré-filtrage intelligent si beaucoup de fichiers
+    // PHASE 2: sélection intelligente des fichiers à analyser en profondeur
     _fsProgressBar(30, 'Analyse du contexte…', null);
-    if(thinkEl) thinkEl.textContent = 'Analyse du contexte…';
+    if(thinkEl) thinkEl.textContent = 'Sélection des fichiers pertinents…';
 
-    // PHASE 1: filtrage par titre (instantané, sans ouvrir les fichiers)
     var titleRanked = _fsFilterByTitle(lastUserMsg, files);
     var titleHits = titleRanked.filter(function(x){ return x.titleScore > 0; });
-    var titleMsg = '';
-    if(titleHits.length > 0 && titleHits.length < files.length){
-      titleMsg = '\uD83D\uDD0D Titres correspondants trouvés : ' + titleHits.slice(0,5).map(function(x){ return files[x.i].name; }).join(', ');
-      var thinkEl2 = document.getElementById('fs-thinking-text');
-      if(thinkEl2) thinkEl2.textContent = titleMsg;
-    }
 
-    // PHASE 2: si des fichiers matchent par titre, les prioriser dans le contenu
-    // Sinon, utiliser le filtre de contenu standard
+    // Stratégie : ≤30 fichiers → tous analysés ; >30 → top 30 par pertinence
+    var MAX_DEEP = 30;
     var relevantIdx;
-    if(titleHits.length >= 2 && titleHits.length <= 8){
-      // Utiliser uniquement les fichiers avec un bon titre match → ouvrir leur contenu
-      relevantIdx = titleHits.slice(0, 8).map(function(x){ return x.i; });
+    if(files.length <= MAX_DEEP){
+      relevantIdx = extracted.map(function(_,i){ return i; });
+    } else if(titleHits.length >= 2){
+      var titleIdxSet = titleHits.slice(0, MAX_DEEP).map(function(x){ return x.i; });
+      var contentIdx = _fsPreFilter(lastUserMsg, extracted, files);
+      var combined = titleIdxSet.slice();
+      contentIdx.forEach(function(i){ if(combined.indexOf(i)<0 && combined.length<MAX_DEEP) combined.push(i); });
+      relevantIdx = combined;
     } else {
-      // Pas de match titre clair → recherche dans le contenu de tous
       relevantIdx = _fsPreFilter(lastUserMsg, extracted, files);
     }
 
@@ -3965,88 +4295,93 @@ function _fsCallAPI(){
       return acc + ((extracted[i] && extracted[i].text) ? extracted[i].text.length : 0);
     }, 0);
 
-    // Afficher la progress bar avec estimation
     _fsShowProgress(files.length, totalChars);
-    var phaseLabel = titleHits.length > 0
-      ? 'Analyse de ' + relevantIdx.length + ' fichier(s) pré-filtré(s) par titre…'
-      : 'Analyse de ' + relevantIdx.length + '/' + files.length + ' fichiers pertinents…';
-    _fsProgressBar(35, phaseLabel, null);
+    _fsProgressBar(38, 'Lecture approfondie de ' + relevantIdx.length + '/' + files.length + ' fichiers…', null);
+    if(thinkEl) thinkEl.textContent = 'Claude Opus lit ' + relevantIdx.length + ' fichier(s) en profondeur…';
+
+    // Limite chars par fichier adaptée (contexte 200K tokens Opus)
+    var maxCharsPerFile = relevantIdx.length > 20 ? 6000 : relevantIdx.length > 10 ? 10000 : 18000;
 
     var fileCtxParts = [], pdfBlocks = [];
-    var maxCharsPerFile = relevantIdx.length > 8 ? 800 : relevantIdx.length > 5 ? 1500 : relevantIdx.length > 3 ? 2000 : 3000;
-
     relevantIdx.forEach(function(i){
       var res = extracted[i];
       var f = files[i];
-      var hdr = 'FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" ('+(f.toolName||'outil')+')';
+      var dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('fr-FR') : '';
+      var hdr = 'FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'"'+(f.toolName?' ('+f.toolName+')':'')+(dateStr?' ['+dateStr+']':'');
       if(res.type === 'pdf'){
-        if(res.b64 && res.b64.length < 1400000 && pdfBlocks.length < 2){
-          pdfBlocks.push({header:hdr, b64:res.b64, mime:res.mime});
-          fileCtxParts.push(hdr + ': [PDF joint]');
+        // Jusqu'à 5 PDFs en document natif Anthropic
+        if(res.b64 && res.b64.length < 1800000 && pdfBlocks.length < 5){
+          pdfBlocks.push({header:hdr, b64:res.b64, mime:res.mime||'application/pdf'});
+          fileCtxParts.push(hdr + ': [PDF joint en document natif pour lecture complète]');
         } else {
-          fileCtxParts.push(hdr + ': [PDF trop volumineux – ' + Math.round((res.b64||'').length*0.75/1024) + 'KB]');
+          fileCtxParts.push(hdr + ': [PDF – ' + Math.round((res.b64||'').length*0.75/1024) + 'KB – trop volumineux]');
         }
       } else {
-        var txt = (res.text || '[Vide]').slice(0, maxCharsPerFile);
+        var txt = (res.text || '[Contenu vide]').slice(0, maxCharsPerFile);
         fileCtxParts.push(hdr + ':\n' + txt);
       }
     });
 
-    // Fichiers non pertinents : juste le nom
+    // Fichiers hors sélection : mentionnés pour contexte
     extracted.forEach(function(res, i){
       if(relevantIdx.indexOf(i) < 0){
         var f = files[i];
-        fileCtxParts.push('FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" : [non pertinent pour cette requête – ignoré]');
+        fileCtxParts.push('FICHIER #'+(i+1)+' [ID:'+f.id+'] "'+f.name+'" : [présent – non analysé en profondeur pour cette requête]');
       }
     });
 
     var fileCtx = fileCtxParts.join('\n\n---\n\n');
-    var sys = [
-      'Tu es un expert en analyse de documents RH et financiers (CVs, credentials, fiches de poste, rapports).',
-      'Tu analyses ' + files.length + ' fichier(s). Réponds TOUJOURS en français, de manière précise et structurée.',
-      '',
-      'RÈGLES DE RÉPONSE:',
-      '- Si on cherche des correspondances/matches: analyse chaque fichier pertinent en détail et ajoute <MATCHES>[...]</MATCHES> à la fin.',
-      '- Si on demande une analyse ou synthèse: réponds en texte structuré, sans JSON.',
-      '- Pour les recherches par mots-clés: cite les passages exacts trouvés.',
-      '- Ne jamais inventer d\'informations absentes des fichiers.',
-      '',
-      'FORMAT MATCHES (obligatoire si recherche de correspondance):',
-      '<MATCHES>[{"id":"id_fichier","name":"nom.ext","score":85,"reason":"Explication courte"}]</MATCHES>',
-      'Score 0-100, uniquement score>30, triés par score décroissant. Maximum 10 résultats.',
-      '',
-      'FICHIERS (' + relevantIdx.length + ' analysés sur ' + files.length + ' disponibles):',
-      '',
-      fileCtx
-    ].join('\n');
 
-    // Historique limité aux 4 derniers échanges
-    var histSlice = _fsChat.history.slice(-8);
+    // Construire le profil client + contexte métier
+    var _sysClient = S.clients.find(function(x){ return x.id === portalCid; });
+    var _sysTools  = S.tools.filter(function(t){ return t.cid === portalCid && t.status === 'deployed'; });
+
+    // Classifier chaque fichier (CV, fiche de poste, credential, etc.)
+    var _fileClassif = files.map(function(f, i){
+      var txt = (extracted[i] && extracted[i].text) ? extracted[i].text : '';
+      return _fsClassifyFile(f, txt);
+    });
+    // Enrichir les en-têtes des fichiers analysés avec leur type détecté
+    relevantIdx.forEach(function(i){
+      var cls = _fileClassif[i];
+      if(cls && cls.label){
+        // Ajouter le type en tête du bloc fichier
+        var marker = 'FICHIER #'+(i+1)+' [ID:'+files[i].id+']';
+        var typeTag = ' {TYPE: '+cls.label+'}';
+        var pos = fileCtx.indexOf(marker);
+        if(pos>=0) fileCtx = fileCtx.slice(0,pos+marker.length) + typeTag + fileCtx.slice(pos+marker.length);
+      }
+    });
+
+    var sys = _fsBuildSystemPrompt(_sysClient, _sysTools, files, relevantIdx, fileCtx, _fileClassif);
+
+    // Historique (6 derniers échanges)
+    var histSlice = _fsChat.history.slice(-12);
     var msgs = histSlice.slice();
 
-    // Injecter les PDFs dans le dernier message user
+    // Injecter les PDFs natifs dans le dernier message user
     if(pdfBlocks.length && msgs.length > 0){
       var last = msgs[msgs.length-1];
       if(last.role === 'user' && typeof last.content === 'string'){
         var blocks = [{type:'text', text:last.content}];
         pdfBlocks.forEach(function(p){
-          blocks.push({type:'document', source:{type:'base64', media_type:p.mime||'application/pdf', data:p.b64}, title:p.header});
+          blocks.push({type:'document', source:{type:'base64', media_type:p.mime, data:p.b64}, title:p.header});
         });
         msgs[msgs.length-1] = {role:'user', content:blocks};
       }
     }
 
-    // PHASE 3: appel API avec AbortController
-    _fsProgressBar(55, 'Envoi à l\'IA…', null);
-    if(thinkEl) thinkEl.textContent = 'Analyse en cours…';
+    // PHASE 3: appel Claude Opus (meilleur modèle Anthropic)
+    _fsProgressBar(55, 'Envoi à Claude Opus pour analyse approfondie…', null);
+    if(thinkEl) thinkEl.textContent = 'Claude Opus analyse vos fichiers…';
 
     _fsAbortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var fetchOpts = {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: files.length > 8 ? 2000 : 3000,
+        model: 'claude-opus-4-8',
+        max_tokens: 6000,
         system: sys,
         messages: msgs
       })
@@ -4104,9 +4439,9 @@ function _fsCallAPI(){
       }
       _fsAddMsg('assistant', textOnly, matched.length ? matched : null);
       if(matched.length){
-        _fsShowSuggestions(['Analyser le meilleur match','Comparer les 3 premiers','Ce qui manque ?']);
+        _fsShowSuggestions(['Analyser le meilleur match en détail','Comparer les 3 premiers','Points manquants ?']);
       } else {
-        _fsShowSuggestions(['Chercher autre chose','Résumer tous les fichiers','Filtrer par outil']);
+        _fsShowTemplates();
       }
     })
     .catch(function(err){
@@ -4164,13 +4499,24 @@ function _fsExtractText(f){
     var cnt = f.content || '';
     var name = (f.name||'').toLowerCase();
     var ext = name.split('.').pop();
-    // Fichier deja texte (gros fichier pre-extrait)
+    // Fichier stocké localement uniquement → tenter IndexedDB en priorité
+    if(!cnt || cnt === '__LOCAL_ONLY__'){
+      _idbGetFile(f.id, function(idbContent){
+        if(idbContent && idbContent !== '__LOCAL_ONLY__' && idbContent.length > 10){
+          _fsExtractText(Object.assign({}, f, {content: idbContent, _isTextOnly: false})).then(resolve);
+        } else {
+          resolve({type:'text', text:'[Fichier "'+f.name+'" – contenu local non accessible pour cette session]'});
+        }
+      });
+      return;
+    }
+    // Fichier deja texte (gros fichier pre-extrait ou texte brut)
     if(f._isTextOnly || (typeof cnt==='string' && !cnt.startsWith('data:') && cnt.length>20)){
-      resolve({type:'text', text: cnt.slice(0,5000)});
+      resolve({type:'text', text: cnt.slice(0,20000)});
       return;
     }
     if(!cnt.startsWith('data:')){
-      resolve({type:'text', text: cnt.slice(0,4000)});
+      resolve({type:'text', text: cnt.slice(0,20000)});
       return;
     }
     var parts = cnt.split(',');
@@ -4199,13 +4545,13 @@ function _fsExtractText(f){
                 .replace(/<w:p[ >]/g,'\n').replace(/<w:br[^>]*>/g,'\n').replace(/<w:tab[^>]*>/g,' ')
                 .replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
                 .replace(/&quot;/g,'"').replace(/&#x[0-9A-Fa-f]+;/g,' ')
-                .replace(/\n{3,}/g,'\n\n').trim().slice(0,5000);
+                .replace(/\n{3,}/g,'\n\n').trim().slice(0,20000);
               resolve({type:'text', text:text||'[Document vide]'});
             }).catch(function(){ resolve({type:'text',text:'[Erreur XML]'}); });
           } else { resolve({type:'text',text:'[Structure ZIP non reconnue]'}); }
         }).catch(function(){
           try{
-            var raw=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,3000);
+            var raw=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,10000);
             resolve({type:'text',text:raw||'[Binaire illisible]'});
           }catch(e){ resolve({type:'text',text:'[Fichier illisible]'}); }
         });
@@ -4216,13 +4562,13 @@ function _fsExtractText(f){
     var isText=(mime.indexOf('text')>=0||mime.indexOf('json')>=0||mime.indexOf('csv')>=0||
                 ext2==='txt'||ext2==='csv'||ext2==='json');
     if(isText){
-      try{ resolve({type:'text',text:atob(b64).slice(0,4000)}); }
-      catch(e){ resolve({type:'text',text:cnt.slice(0,4000)}); }
+      try{ resolve({type:'text',text:atob(b64).slice(0,20000)}); }
+      catch(e){ resolve({type:'text',text:cnt.slice(0,20000)}); }
       return;
     }
     // Fallback
     try{
-      var raw2=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,3000);
+      var raw2=atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').slice(0,10000);
       resolve({type:'text',text:raw2||'[Contenu binaire]'});
     }catch(e){ resolve({type:'text',text:'[Fichier: '+Math.round(b64.length*0.75/1024)+'KB]'}); }
   });
@@ -4337,6 +4683,13 @@ function _portalInitAfterLoad(cid,c){
     ['pfl','pfr','pff'].forEach(function(id){var el=$(id);if(el)el.style.display='none'});
     ['ptl','ptr','ptf'].forEach(function(id){var el=$(id);if(el)el.classList.remove('on')});
     if($('pfrs'))$('pfrs').style.display='block';
+    // Pré-remplir le champ username caché pour que le navigateur sache quel compte change
+    try{
+      var _rtData=JSON.parse(atob(decodeURIComponent(resetToken)));
+      var _rtUser=(portalGetUsers(_rtData.cid||cid)||[]).find(function(x){return x.id===(_rtData.uid||_rtData.id);});
+      var _unField=$('p-np-username');
+      if(_unField&&_rtUser)_unField.value=_rtUser.email||_rtUser.name||'';
+    }catch(e){}
     return;
   }
   if(_sess&&_sess.exp>Date.now()){
@@ -4598,16 +4951,66 @@ function showForcedPasswordChange(){
     +'<div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px">&#128274; Changement de mot de passe requis</div>'
     +'<div style="font-size:12px;color:#92400e;line-height:1.5">Votre administrateur a réinitialisé votre mot de passe. Vous devez en choisir un nouveau pour accéder à votre espace.</div>'
     +'</div>'
+    +'<input type="text" id="fpc-username" autocomplete="username" style="display:none" aria-hidden="true" tabindex="-1" value="'+(portalMe&&portalMe.email?portalMe.email:'')+'">'
     +'<label class="p-label">Nouveau mot de passe</label>'
-    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd" type="password" placeholder="Minimum 8 caractères" style="padding-right:44px">'
+    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd" type="password" placeholder="Minimum 8 caractères" autocomplete="new-password" style="padding-right:44px">'
     +'<button type="button" onclick="toggleEye(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px">&#128065;</button></div>'
     +'<label class="p-label">Confirmer le nouveau mot de passe</label>'
-    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd2" type="password" placeholder="Répétez le mot de passe" style="padding-right:44px">'
+    +'<div style="position:relative;margin-bottom:13px"><input class="p-input" id="fpc-pwd2" type="password" placeholder="Répétez le mot de passe" autocomplete="new-password" style="padding-right:44px">'
     +'<button type="button" onclick="toggleEye(this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px">&#128065;</button></div>'
     +'<div id="fpc-err" class="p-err"></div>'
     +'<button class="p-btn" onclick="applyForcedPasswordChange()">DÉFINIR MON MOT DE PASSE &rarr;</button>';
   box.appendChild(overlay);
   setTimeout(function(){var i=document.getElementById('fpc-pwd');if(i)i.focus();},100);
+}
+
+// Notifie le gestionnaire de mots de passe du navigateur (Chrome, Safari, Firefox, Google)
+// en combinant deux mécanismes complémentaires :
+// 1. Credentials Management API (PasswordCredential) — méthode moderne la plus fiable
+// 2. Soumission d'un formulaire caché avec username + new-password — fallback universel
+function _notifyPasswordManager(email, newPassword){
+  if(!email || !newPassword) return;
+
+  // Méthode 1 : Credentials Management API (Chrome, Edge, Safari 15+)
+  if(window.PasswordCredential){
+    try{
+      var cred = new window.PasswordCredential({ id: email, password: newPassword });
+      navigator.credentials.store(cred).catch(function(){});
+    }catch(e){}
+  }
+
+  // Méthode 2 : formulaire caché soumis — déclenche la popup native de tous les navigateurs
+  try{
+    var form = document.createElement('form');
+    form.method = 'post';
+    form.action = '';
+    form.style.cssText = 'display:none;position:fixed;opacity:0;pointer-events:none';
+
+    var uField = document.createElement('input');
+    uField.type = 'text';
+    uField.name = 'username';
+    uField.autocomplete = 'username';
+    uField.value = email;
+
+    var pField = document.createElement('input');
+    pField.type = 'password';
+    pField.name = 'password';
+    pField.autocomplete = 'new-password';
+    pField.value = newPassword;
+
+    form.appendChild(uField);
+    form.appendChild(pField);
+    document.body.appendChild(form);
+
+    // Soumettre le formulaire pour que le navigateur détecte le changement
+    // puis annuler immédiatement pour ne pas recharger la page
+    form.addEventListener('submit', function(e){ e.preventDefault(); });
+    // Utiliser requestSubmit si disponible (déclenche mieux les gestionnaires)
+    if(form.requestSubmit){ form.requestSubmit(); }
+    else { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }
+
+    setTimeout(function(){ if(form.parentNode) form.parentNode.removeChild(form); }, 3000);
+  }catch(e){}
 }
 
 function applyForcedPasswordChange(){
@@ -4639,8 +5042,17 @@ function applyForcedPasswordChange(){
 
   portalMe=u;
 
+  // Signaler le nouveau mot de passe au gestionnaire du navigateur
+  _notifyPasswordManager(u.email||u.name||'', p);
+
   // Save session so the next page reload restores access directly
   try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}));}catch(e){}
+
+  // Nettoyer l'URL (supprimer ?reset= si présent)
+  try{
+    var _cp=window.location.pathname+'?portal='+portalCid;
+    if(window.location.search.indexOf('reset=')>=0) history.replaceState(null,'',_cp);
+  }catch(e){}
 
   // Remove forced overlay
   var overlay=document.getElementById('forced-pwd-change');
@@ -4769,9 +5181,16 @@ function doNewPwd(){
     if(!u){err.textContent='Utilisateur introuvable.';err.className='p-err on';return}
     u.pwd=p;portalSaveUsers(data.cid,users);
     var au=S.users.find(function(x){return x.id===data.uid});if(au){au.pwd=p;persist()}
+    // Signaler le nouveau mot de passe au gestionnaire du navigateur
+    _notifyPasswordManager(u.email||u.name||'', p);
     resetToken=null;
+    // Nettoyer le token de l'URL pour éviter que le formulaire réapparaisse au rechargement
+    try{
+      var _cleanUrl=window.location.pathname+'?portal='+(data.cid||portalCid||'');
+      history.replaceState(null,'',_cleanUrl);
+    }catch(e){}
     $('pfrs').style.display='none';showPortalTab('l');
-    $('p-lerr').textContent='Mot de passe reinitialise! Connectez-vous.';$('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';$('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
+    $('p-lerr').textContent='Mot de passe réinitialisé ! Connectez-vous.';$('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';$('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
   }catch(ex){err.textContent='Token invalide.';err.className='p-err on'}
 }
 
@@ -4872,7 +5291,7 @@ function _extractTextSync(dataUrl, fname){
   // Fallback texte générique
   try{
     var raw = atob(b64).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,'').trim();
-    if(raw.length > 50) return 'text:'+raw.slice(0,3000);
+    if(raw.length > 50) return 'text:'+raw.slice(0,10000);
   } catch(e){}
 
   return '__LOCAL_ONLY__';
@@ -5153,25 +5572,35 @@ function _doRenderPortalApp(c){
       if((f.createdAt||0)>toolGroups[key].lastDate)toolGroups[key].lastDate=f.createdAt||0;
     });
     var sortedKeys=Object.keys(toolGroups).sort(function(a,b){return (toolGroups[b].lastDate||0)-(toolGroups[a].lastDate||0);});
+    // Webapp filter dropdown
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">';
+    h+='<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Webapp</span>';
+    h+='<div style="flex:1;position:relative">';
+    h+='<select id="webapp-filter" onchange="filterByWebapp(this.value)" style="width:100%;appearance:none;-webkit-appearance:none;background:#131726;border:1.5px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 36px 9px 14px;color:#fff;font-size:13px;font-family:var(--bfnt);outline:none;cursor:pointer;transition:border .15s" onfocus="this.style.borderColor=\''+color+'\'" onblur="this.style.borderColor=\'rgba(255,255,255,.09)\'">';
+    h+='<option value="">Toutes les webapps ('+allFilesF.length+' fichiers)</option>';
+    sortedKeys.forEach(function(k){var g=toolGroups[k];h+='<option value="'+k+'">'+g.name+' — '+g.files.length+' fichier'+(g.files.length>1?'s':'')+'</option>';});
+    h+='</select>';
+    h+='<span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.4);font-size:11px;pointer-events:none">&#9660;</span>';
+    h+='</div></div>';
     h+='<div id="files-folders">';
     sortedKeys.forEach(function(key,gi){
       var grp=toolGroups[key];
       var folderId='folder-'+gi;
-      h+='<div style="margin-bottom:12px">';
+      h+='<div data-folderkey="'+key+'" style="margin-bottom:12px">';
       h+='<div class="folder-hd" data-fid="'+folderId+'" onclick="toggleFolder(this.dataset.fid)">';
       h+='<span style="font-size:22px">'+grp.icon+'</span>';
       h+='<div style="flex:1"><div style="font-family:var(--cfnt);font-size:15px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:-.2px">'+grp.name+'</div>';
       h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">'+grp.files.length+' fichier'+(grp.files.length>1?'s':'')+'</div></div>';
-      h+='<span id="arr-'+folderId+'" style="color:rgba(255,255,255,.4);font-size:13px;transition:transform .2s">&#9660;</span>';
+      h+='<span id="arr-'+folderId+'" style="color:rgba(255,255,255,.4);font-size:13px;transition:transform .2s;transform:rotate(-90deg)">&#9660;</span>';
       h+='</div>';
-      h+='<div id="'+folderId+'" style="padding:0 0 0 16px;margin-top:6px;display:flex;flex-direction:column;gap:6px">';
+      h+='<div id="'+folderId+'" style="padding:0 0 0 16px;margin-top:6px;flex-direction:column;gap:6px;display:none">';
       grp.files.forEach(function(f){
         var daysLeft=Math.ceil((f.expiresAt-Date.now())/(24*3600*1000));
         var dateStr2=new Date(f.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         var urgentColor=daysLeft<=3?'#f87171':daysLeft<=7?'#fbbf24':'rgba(255,255,255,.4)';
         var fMime=f.mime||'';
         var fIco=fMime.includes('pdf')?'&#128196;':(fMime.includes('word')||f.name.endsWith('.docx'))?'&#128221;':(fMime.includes('excel')||f.name.endsWith('.xlsx'))?'&#128202;':(fMime.includes('presentation')||f.name.endsWith('.pptx'))?'&#128209;':(fMime.includes('image'))?'&#128444;':(fMime.includes('zip'))?'&#128230;':'&#128196;';
-        h+='<div class="file-row file-row-new" data-fname="'+f.name.toLowerCase()+'" data-fcontent="'+(f.content||'').toLowerCase().slice(0,200)+'">';
+        h+='<div class="file-row file-row-new" data-fname="'+f.name.toLowerCase()+'" data-fcontent="'+(f.content||'').toLowerCase().slice(0,200)+'" data-toolkey="'+key+'">';
         h+='<span style="font-size:18px;flex-shrink:0">'+fIco+'</span>';
         h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>';
         h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">'+(f.userName||f.toolName||'Utilisateur')+' &middot; '+dateStr2+'</div></div>';
@@ -5464,22 +5893,69 @@ function toggleFolder(id){
   if(arr)arr.style.transform=isOpen?'rotate(-90deg)':'rotate(0deg)';
 }
 
-function filterFiles(q){
-  var rows=document.querySelectorAll('.file-row');
+function filterByWebapp(key){
+  var wf=document.getElementById('webapp-filter');
+  var activeKey=key!==undefined?key:(wf?wf.value:'');
+  var groups=document.querySelectorAll('#files-folders>[data-folderkey]');
+  groups.forEach(function(grpDiv){
+    var gk=grpDiv.dataset.folderkey;
+    var show=!activeKey||gk===activeKey;
+    grpDiv.style.display=show?'block':'none';
+    if(activeKey&&gk===activeKey){
+      // Auto-expand when specific webapp selected
+      var folderId=grpDiv.querySelector('.folder-hd')&&grpDiv.querySelector('.folder-hd').dataset.fid;
+      if(folderId){
+        var content=document.getElementById(folderId);
+        var arr=document.getElementById('arr-'+folderId);
+        if(content){content.style.display='flex';content.style.flexDirection='column';}
+        if(arr)arr.style.transform='rotate(0deg)';
+      }
+    }
+  });
+  // Re-apply text filter on top
+  var search=document.getElementById('files-search');
+  if(search&&search.value)_applyFileTextFilter(search.value);
+}
+
+function _applyFileTextFilter(q){
   var lq=q.toLowerCase().trim();
+  var rows=document.querySelectorAll('.file-row');
   rows.forEach(function(row){
     var fname=(row.dataset.fname||'');
     var fcontent=(row.dataset.fcontent||'');
     var match=!lq||fname.includes(lq)||fcontent.includes(lq);
     row.style.display=match?'flex':'none';
   });
-  // Show/hide folder headers based on visible children
   var folders=document.querySelectorAll('[id^="folder-"]');
   folders.forEach(function(folder){
     var visible=folder.querySelectorAll('.file-row:not([style*="none"])').length;
+    if(visible>0&&folder.style.display==='none'){
+      folder.style.display='flex';folder.style.flexDirection='column';
+      var arr=document.getElementById('arr-'+folder.id);
+      if(arr)arr.style.transform='rotate(0deg)';
+    }
     var hdr=folder.previousElementSibling;
-    if(hdr)hdr.style.display=visible>0||!lq?'flex':'none';
+    if(hdr&&hdr.classList.contains('folder-hd')){
+      var grpDiv=hdr.parentElement;
+      if(grpDiv){
+        var wf=document.getElementById('webapp-filter');
+        var activeKey=wf?wf.value:'';
+        var gk=grpDiv.dataset.folderkey;
+        var webappMatch=!activeKey||gk===activeKey;
+        grpDiv.style.display=(webappMatch&&(visible>0||!lq))?'block':'none';
+      }
+    }
   });
+}
+
+function filterFiles(q){
+  var lq=q.toLowerCase().trim();
+  if(!lq){
+    // Reset text filter — respect webapp filter
+    filterByWebapp();
+    return;
+  }
+  _applyFileTextFilter(lq);
 }
 
 
