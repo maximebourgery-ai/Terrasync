@@ -4526,8 +4526,8 @@ function _doLoginCheck(e, p){
     return;
   }
   portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
-  // Save session with 1h expiry
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}))}catch(e){}
+  // Save session with 8h expiry
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+8*60*60*1000}))}catch(e){}
   showPortalApp();
 }
 
@@ -5614,17 +5614,19 @@ function handleToolClick(tid){ _portalTouchSession();
 // _DL_INTERCEPTOR removed — tools open in new tab via /tool.html
 
 
-// Renouveler la session portail à chaque activité (30min glissantes)
+// Renouveler la session portail à chaque activité (8h glissantes)
 function _portalTouchSession(){
   if(!portalCid || !portalMe) return;
   try{
     var _s=JSON.parse(localStorage.getItem('ps_'+portalCid)||'null');
     if(_s && _s.uid===portalMe.id){
-      _s.exp=Date.now()+30*60*1000;
+      _s.exp=Date.now()+8*60*60*1000;
       localStorage.setItem('ps_'+portalCid,JSON.stringify(_s));
     }
   }catch(e){}
 }
+// Rafraîchir la session automatiquement toutes les 5 minutes si le portail est actif
+setInterval(function(){ _portalTouchSession(); }, 5*60*1000);
 
 function openWebTool(t){
   _portalTouchSession();
