@@ -5639,8 +5639,21 @@ function _doRenderPortalApp(c){
     var toolGroups={};
     var sortedFiles=allFilesF.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
     sortedFiles.forEach(function(f){
-      var key=(f.toolId&&f.toolId!=='')?f.toolId:(f.toolName&&f.toolName!=='Outil'&&f.toolName!==''?f.toolName:('__other_'+(f.toolIcon||'📄')));
-      if(!toolGroups[key]){toolGroups[key]={name:(f.toolName&&f.toolName!==''&&f.toolName!=='Outil')?f.toolName:'Fichiers divers',icon:f.toolIcon||'📄',files:[],lastDate:f.createdAt||0};}
+      // Niveau 1 : toolId connu
+      // Niveau 2 : toolName valide
+      // Niveau 3 : préfixe du nom de fichier (avant _ ou espace, min 3 chars)
+      // Niveau 4 : fallback "Fichiers divers"
+      var _prefix='';
+      if(!f.toolId&&(!f.toolName||f.toolName==='Outil'||f.toolName==='')){
+        var _fn=(f.name||'').replace(/\.[^.]+$/,''); // sans extension
+        var _sep=_fn.indexOf('_')>-1?_fn.indexOf('_'):_fn.indexOf(' ');
+        if(_sep>2){_prefix=_fn.slice(0,_sep).replace(/[^a-zA-Z0-9À-ž]/g,'').trim();}
+        if(_prefix.length<3)_prefix='';
+      }
+      var key=(f.toolId&&f.toolId!=='')?f.toolId:(f.toolName&&f.toolName!=='Outil'&&f.toolName!==''?f.toolName:(_prefix?('__pfx_'+_prefix):'__other_'));
+      var _grpName=(f.toolName&&f.toolName!==''&&f.toolName!=='Outil')?f.toolName:(_prefix||'Fichiers divers');
+      var _grpIcon=f.toolIcon||((_prefix&&_prefix.length)?'📁':'📄');
+      if(!toolGroups[key]){toolGroups[key]={name:_grpName,icon:_grpIcon,files:[],lastDate:f.createdAt||0};}
       toolGroups[key].files.push(f);
       if((f.createdAt||0)>toolGroups[key].lastDate)toolGroups[key].lastDate=f.createdAt||0;
     });
