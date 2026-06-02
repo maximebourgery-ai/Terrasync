@@ -623,7 +623,7 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
       <div style="width:7px;height:7px;border-radius:50%;background:#00d464;margin-left:8px"></div>
     </div>
     <div class="paov-load" id="paov-load"><div class="paov-spin"></div><div style="font-size:12px">Chargement...</div></div>
-    <iframe id="paov-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" style="display:none;flex:1;border:none;width:100%"></iframe>
+    <iframe id="paov-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals" style="display:none;flex:1;border:none;width:100%"></iframe>
   </div>
   <div class="pchat" id="pchat">
     <div class="pch-hd"><div class="pch-ico" id="pch-ico"></div><div><div class="pch-name" id="pch-name"></div></div><div class="pch-close" id="pch-close">x</div></div>
@@ -3420,18 +3420,20 @@ function saveAiResponse(content, toolName, toolIcon){
   setTimeout(function(){showPortalSection('files');},50);
 }
 
-// Bridge API for web tools running inside paov-frame
-// Tools call: window.parent.TERR.saveFile({name, content, mime, encoding})
-// For binary files: encoding='base64', content=base64string
-window.TERR = {
-  saveFile: function(opts){
-    if(!opts||!opts.name||!opts.content){return;}
+// Bridge API for web tools running inside paov-frame (sandboxed iframe)
+// Uses postMessage so no allow-same-origin needed (avoids double-download bug)
+// Web tools call: window.parent.postMessage({type:'TERR_SAVE_FILE', name, content, mime, encoding}, '*')
+window.addEventListener('message', function(e){
+  var d=e.data;
+  if(!d||typeof d!=='object')return;
+  if(d.type==='TERR_SAVE_FILE'){
+    if(!d.name||!d.content)return;
     var t=S.tools.find(function(x){return x.id===window._currentToolId})||{};
     var file={
-      name:opts.name,
-      content:opts.content,
-      mime:opts.mime||'application/octet-stream',
-      encoding:opts.encoding||null,
+      name:d.name,
+      content:d.content,
+      mime:d.mime||'application/octet-stream',
+      encoding:d.encoding||null,
       toolId:t.id||'',
       toolName:t.name||'Outil',
       toolIcon:t.icon||'📄',
@@ -3441,12 +3443,14 @@ window.TERR = {
     if(portalCid){
       portalAddFile(portalCid,file);
       renderPortalApp();
-      toast('✓ Fichier "'+opts.name+'" sauvegardé');
+      toast('✓ Fichier "'+d.name+'" sauvegardé dans Mes fichiers');
     }
-  },
-  getUser: function(){return portalMe?{id:portalMe.id,name:portalMe.name,email:portalMe.email}:null;},
-  getCid: function(){return portalCid;}
-};
+  }
+  if(d.type==='TERR_GET_USER'){
+    var frame=document.getElementById('paov-frame');
+    if(frame&&frame.contentWindow)frame.contentWindow.postMessage({type:'TERR_USER_RESPONSE',user:portalMe?{id:portalMe.id,name:portalMe.name,email:portalMe.email}:null,cid:portalCid},'*');
+  }
+});
 
 function handleToolClick(tid){
   var t=S.tools.find(function(x){return x.id===tid});if(!t)return;
@@ -4095,7 +4099,7 @@ function buildPortalHTML(c){
     // TOOL SCREEN
     html += '<div class="ts" id="tsc">';
     html += '<div class="thd"><button class="tbk" onclick="closeT()">&#8592; Retour</button><div class="tti" id="tti"></div><div style="width:7px;height:7px;border-radius:50%;background:#00d464;margin-left:auto"></div></div>';
-    html += '<iframe id="tfr" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" style="flex:1;border:none;width:100%"></iframe>';
+    html += '<iframe id="tfr" sandbox="allow-scripts allow-forms allow-popups allow-modals" style="flex:1;border:none;width:100%"></iframe>';
     html += '</div>';
 
     // JAVASCRIPT - all in one block, no template literals
@@ -4176,40 +4180,27 @@ function buildPortalHTML(c){
     html += 'function renderCards(tools){var el=document.getElementById("agd");if(!tools.length){el.innerHTML="<p style=\'padding:60px;text-align:center;color:rgba(255,255,255,.2);grid-column:1/-1\'>Aucun outil disponible.</p>";return}el.innerHTML=tools.map(function(t,i){return mkCard(t,i)}).join("")}';
     html += 'function openT(el){var tid=el.dataset.tid;var t=TD.find(function(x){return x.id===tid});if(!t)return;if(!t.htmlContent||!t.htmlContent.trim()){alert("Outil non disponible - aucun fichier deploye");return}document.getElementById("tti").textContent=t.name;document.getElementById("tfr").srcdoc=t.htmlContent;document.getElementById("tsc").className="ts on"}';
     html += 'function closeT(){document.getElementById("tsc").className="ts";var f=document.getElementById("tfr");f.srcdoc=""}';
-    // Bridge TERR API: lets web tools save files to portal storage
-    // Web tools call: window.parent.TERR.saveFile({name, content, mime, encoding:'base64'})
-    html += 'function _pDownload(f){';
-    html += '  var c=f.content||"",mime=f.mime||"text/plain;charset=utf-8";';
-    html += '  var blob;';
-    html += '  try{';
-    html += '    var isBin=["vnd","octet","zip","pdf","msword","excel","powerpoint","image/","audio/","video/"].some(function(t){return mime.indexOf(t)>-1});';
-    html += '    if(f.encoding==="base64"||isBin){';
-    html += '      var b64=c.indexOf(",")>-1&&c.startsWith("data:")?c.split(",")[1]:c;';
-    html += '      var bin=atob(b64),bytes=new Uint8Array(bin.length);';
-    html += '      for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);';
-    html += '      blob=new Blob([bytes],{type:mime});';
-    html += '    }else{blob=new Blob([c],{type:mime});}';
-    html += '  }catch(e){blob=new Blob([c],{type:"text/plain;charset=utf-8"});}';
-    html += '  var url=URL.createObjectURL(blob);var a=document.createElement("a");';
-    html += '  a.href=url;a.download=f.name;document.body.appendChild(a);a.click();document.body.removeChild(a);';
-    html += '  setTimeout(function(){URL.revokeObjectURL(url)},3000);';
-    html += '}';
+    // Bridge: portal listens for postMessage from tool iframe (no allow-same-origin needed)
+    // Web tools send: window.parent.postMessage({type:'TERR_SAVE_FILE', name, content, mime, encoding:'base64'}, '*')
     html += 'var _me2=null;try{_me2=JSON.parse(localStorage.getItem(UK)||"null")}catch(e){}';
-    html += 'window.TERR={';
-    html += '  saveFile:function(opts){';
-    html += '    if(!opts||!opts.name||!opts.content)return;';
+    html += 'window.addEventListener("message",function(e){';
+    html += '  var d=e.data;if(!d||typeof d!=="object")return;';
+    html += '  if(d.type==="TERR_SAVE_FILE"){';
+    html += '    if(!d.name||!d.content)return;';
     html += '    var fk="terr_"+CID+"_files";';
-    html += '    var files=[];try{files=JSON.parse(localStorage.getItem(fk)||"[]")}catch(e){}';
+    html += '    var files=[];try{files=JSON.parse(localStorage.getItem(fk)||"[]")}catch(ex){}';
     html += '    var now=Date.now();';
-    html += '    var f={id:Math.random().toString(36).slice(2,10),name:opts.name,content:opts.content,mime:opts.mime||"application/octet-stream",encoding:opts.encoding||null,createdAt:now,expiresAt:now+30*24*3600*1000,toolId:opts.toolId||"",toolName:opts.toolName||"Outil",toolIcon:opts.toolIcon||"📄",userId:_me2?_me2.id:"",userName:_me2?_me2.name:"Utilisateur"};';
+    html += '    var f={id:Math.random().toString(36).slice(2,10),name:d.name,content:d.content,mime:d.mime||"application/octet-stream",encoding:d.encoding||null,createdAt:now,expiresAt:now+30*24*3600*1000,toolId:d.toolId||"",toolName:d.toolName||"Outil",toolIcon:d.toolIcon||"📄",userId:_me2?_me2.id:"",userName:_me2?_me2.name:"Utilisateur"};';
     html += '    files.unshift(f);if(files.length>100)files=files.slice(0,100);';
-    html += '    try{localStorage.setItem(fk,JSON.stringify(files))}catch(e){}';
-    html += '    alert("✓ Fichier \\""+opts.name+"\\" sauvegardé dans Mes fichiers");';
-    html += '  },';
-    html += '  downloadFile:function(opts){_pDownload(opts)},';
-    html += '  getUser:function(){return _me2?{id:_me2.id,name:_me2.name,email:_me2.email}:null},';
-    html += '  getCid:function(){return CID}';
-    html += '};';
+    html += '    try{localStorage.setItem(fk,JSON.stringify(files))}catch(ex){}';
+    html += '    var fr=document.getElementById("tfr");';
+    html += '    if(fr&&fr.contentWindow)fr.contentWindow.postMessage({type:"TERR_SAVE_OK",name:d.name},"*");';
+    html += '  }';
+    html += '  if(d.type==="TERR_GET_USER"){';
+    html += '    var fr2=document.getElementById("tfr");';
+    html += '    if(fr2&&fr2.contentWindow)fr2.contentWindow.postMessage({type:"TERR_USER_RESPONSE",user:_me2?{id:_me2.id,name:_me2.name,email:_me2.email}:null,cid:CID},"*");';
+    html += '  }';
+    html += '});
     html += 'function logout(){try{localStorage.removeItem(UK);localStorage.removeItem(UK+"_exp")}catch(e){}document.getElementById("as").className="as";document.getElementById("ls").style.display="flex"}';
     html += 'document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});';
     html += 'document.getElementById("rp2").addEventListener("keydown",function(e){if(e.key==="Enter")doReg()});';
