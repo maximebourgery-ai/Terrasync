@@ -15,7 +15,7 @@ export async function onRequestPost({ request, env }) {
     if (!supabaseUrl || !supabaseKey) return json({ error: 'Supabase credentials manquants.' }, 503);
 
     const resp = await fetch(
-      `${supabaseUrl}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=eq.approved&select=cid,pwd&limit=1`,
+      `${supabaseUrl}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=eq.approved&select=id,cid,pwd&limit=1`,
       { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
     );
     if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
@@ -30,7 +30,7 @@ export async function onRequestPost({ request, env }) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
     }
 
-    return json({ success: true, portalId: rows[0].cid, message: 'Portail trouvé !' });
+    return json({ success: true, portalId: rows[0].cid, userId: rows[0].id, message: 'Portail trouvé !' });
   } catch (error) {
     return json({ success: false, error: 'Erreur serveur', details: error.message }, 500);
   }

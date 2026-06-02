@@ -144,6 +144,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       return;
     }
 
+    // Créer la session localStorage pour auto-login dans app.html
+    if (result.userId) {
+      try {
+        localStorage.setItem('ps_' + result.portalId, JSON.stringify({
+          uid: result.userId,
+          exp: Date.now() + 30 * 60 * 1000
+        }));
+      } catch(e) {}
+    }
     showToast('Connexion réussie ! Redirection...', 'success');
     setTimeout(() => {
       window.location.href = `/app.html?portal=${result.portalId}`;
