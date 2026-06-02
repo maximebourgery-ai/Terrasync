@@ -5061,41 +5061,113 @@ function cleanupFiles(){
   setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
 }
 
+function openAssignToolModal(fid){
+  if(!portalCid)return;
+  var files=portalGetFiles(portalCid);
+  var f=files.find(function(x){return x.id===fid;});
+  if(!f)return;
+  var tools=S.tools||[];
+  // Supprimer ancien modal
+  var old=document.getElementById('_assign-modal');
+  if(old)old.remove();
+  var m=document.createElement('div');
+  m.id='_assign-modal';
+  m.style.cssText='position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
+  var inner='<div style="background:#131726;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:24px;width:100%;max-width:400px;max-height:80vh;overflow-y:auto">';
+  inner+='<div style="font-family:var(--cfnt);font-size:16px;font-weight:900;color:#fff;margin-bottom:4px">Assigner à un outil</div>';
+  inner+='<div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>';
+  // Option "Aucun outil"
+  inner+='<div onclick="assignFileToTool(\''+fid+'\',\'\',\'\',\'\')" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;cursor:pointer;border:1px solid rgba(255,255,255,.07);margin-bottom:8px;background:rgba(255,255,255,.03)" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\'rgba(255,255,255,.03)\'">';
+  inner+='<span style="font-size:20px">📄</span><span style="color:rgba(255,255,255,.5);font-size:13px;font-style:italic">Aucun outil (retirer l\'attribution)</span></div>';
+  tools.forEach(function(t){
+    var ico=t.icon||'🌐';
+    inner+='<div onclick="assignFileToTool(\''+fid+'\',\''+t.id+'\',\''+t.name.replace(/'/g,'&#39;')+'\',\''+ico+'\')" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;cursor:pointer;border:1px solid rgba(255,255,255,.07);margin-bottom:8px;background:rgba(255,255,255,.03)'+(f.toolId===t.id?';border-color:rgba(100,200,100,.4);background:rgba(100,200,100,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.07)\'" onmouseout="this.style.background=\''+(f.toolId===t.id?'rgba(100,200,100,.06)':'rgba(255,255,255,.03)')+'\'">';
+    inner+='<span style="font-size:20px">'+ico+'</span><span style="color:#fff;font-size:13px;font-weight:600">'+t.name+'</span>'+(f.toolId===t.id?'<span style="margin-left:auto;font-size:10px;color:#4ade80">✓ actuel</span>':'')+'</div>';
+  });
+  inner+='<button onclick="document.getElementById(\'_assign-modal\').remove()" style="width:100%;margin-top:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6);border-radius:10px;padding:10px;font-size:13px;cursor:pointer">Annuler</button>';
+  inner+='</div>';
+  m.innerHTML=inner;
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  document.body.appendChild(m);
+}
+
+function assignFileToTool(fid,toolId,toolName,toolIcon){
+  var modal=document.getElementById('_assign-modal');
+  if(modal)modal.remove();
+  var files=portalGetFiles(portalCid);
+  var f=files.find(function(x){return x.id===fid;});
+  if(!f)return;
+  f.toolId=toolId||'';
+  f.toolName=toolName||'';
+  f.toolIcon=toolIcon||'';
+  portalSaveFiles(portalCid,files);
+  jbPushFiles(portalCid,files);
+  toast(toolName?('✅ Fichier assigné à "'+toolName+'"'):'✅ Attribution retirée');
+  setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+}
+
 function reclassifyFiles(){
   if(!portalCid||!portalMe){toast('Session portail requise',false);return;}
   var files=portalGetFiles(portalCid);
   var unclassified=files.filter(function(f){return !f.toolId&&(!f.toolName||f.toolName==='Outil'||f.toolName==='');});
   if(!unclassified.length){toast('✅ Tous les fichiers sont déjà classés !');return;}
   var tools=S.tools||[];
-  var fixed=0;
-  unclassified.forEach(function(f){
-    // Chercher un outil dont le nom apparaît dans le nom du fichier
-    var fname=(f.name||'').toLowerCase();
-    var matched=null;
-    tools.forEach(function(t){
-      if(!matched&&t.name){
-        var tlow=t.name.toLowerCase();
-        // Match exact ou partiel (ex: "devis" dans "devis_2024-01-15.pdf")
-        if(fname.includes(tlow)||tlow.split(' ').some(function(w){return w.length>3&&fname.includes(w);})){
-          matched=t;
-        }
-      }
-    });
-    if(matched){
-      f.toolId=matched.id||'';
-      f.toolName=matched.name||'';
-      f.toolIcon=matched.icon||'🌐';
+  if(!tools.length){toast('⚠️ Aucun outil disponible pour classer les fichiers',false);return;}
+
+  toast('🤖 Claude analyse les fichiers…');
+
+  var toolsList=tools.map(function(t){return {id:t.id,name:t.name,icon:t.icon||'🌐'};});
+  var filesList=unclassified.map(function(f){return {id:f.id,name:f.name};});
+
+  var prompt='Tu es un assistant de classement de fichiers. Voici la liste des outils disponibles :\n'+
+    JSON.stringify(toolsList,null,2)+'\n\n'+
+    'Voici les fichiers à classer :\n'+
+    JSON.stringify(filesList,null,2)+'\n\n'+
+    'Pour chaque fichier, détermine quel outil l\'a probablement généré en te basant sur le nom du fichier. '+
+    'Utilise ton raisonnement : préfixes, mots-clés, acronymes, type de document, etc. '+
+    'Si aucun outil ne correspond, laisse tool_id vide.\n\n'+
+    'Réponds UNIQUEMENT avec un JSON valide, sans markdown, sous cette forme exacte :\n'+
+    '[{"file_id":"...","tool_id":"...","tool_name":"...","tool_icon":"..."},...]';
+
+  fetch('/api/anthropic',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:1000,
+      messages:[{role:'user',content:prompt}]
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('').trim();
+    var assignments;
+    try{
+      // Extraire le JSON même si entouré de texte
+      var m=text.match(/\[[\s\S]*\]/);
+      assignments=JSON.parse(m?m[0]:text);
+    }catch(e){toast('⚠️ Erreur de parsing de la réponse IA',false);return;}
+
+    var fixed=0;
+    assignments.forEach(function(a){
+      if(!a.tool_id)return;
+      var f=files.find(function(x){return x.id===a.file_id;});
+      if(!f)return;
+      f.toolId=a.tool_id;
+      f.toolName=a.tool_name||'';
+      f.toolIcon=a.tool_icon||'🌐';
       fixed++;
+    });
+    if(fixed>0){
+      portalSaveFiles(portalCid,files);
+      jbPushFiles(portalCid,files);
+      toast('✅ '+fixed+' fichier'+(fixed>1?'s classés':'classé')+' par IA');
+      setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+    } else {
+      toast('⚠️ L\'IA n\'a trouvé aucune correspondance avec les outils existants',false);
     }
-  });
-  if(fixed>0){
-    portalSaveFiles(portalCid,files);
-    jbPushFiles(portalCid,files);
-    toast('✅ '+fixed+' fichier'+(fixed>1?'s classés':' classé')+' par outil');
-    setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
-  } else {
-    toast('⚠️ Aucun fichier ne correspond à un outil connu — renommez les fichiers ou classez-les manuellement',false);
-  }
+  })
+  .catch(function(){toast('⚠️ Erreur lors de la classification IA',false);});
 }
 function portalDownloadFile(f){
   var cnt = f.content || '';
@@ -5260,8 +5332,10 @@ function _doRenderPortalApp(c){
         h+='<div class="file-row file-row-new" data-fname="'+f.name.toLowerCase()+'" data-fcontent="'+(f.content||'').toLowerCase().slice(0,200)+'">';
         h+='<span style="font-size:18px;flex-shrink:0">'+fIco+'</span>';
         h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>';
-        h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">'+(f.userName||f.toolName||'Utilisateur')+' &middot; '+dateStr2+'</div></div>';
+        var toolLabel=f.toolName&&f.toolName!==''&&f.toolName!=='Outil'?('<span style="color:'+color+';font-weight:700">'+f.toolName+'</span>'):('<span style="color:rgba(255,255,255,.3);font-style:italic">Non classé</span>');
+        h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">'+(f.userName||'Utilisateur')+' &middot; '+dateStr2+' &middot; '+toolLabel+'</div></div>';
         h+='<span style="font-size:10px;color:'+urgentColor+';font-weight:600;flex-shrink:0;background:rgba(255,255,255,.05);padding:3px 8px;border-radius:6px">'+daysLeft+'j</span>';
+        h+='<button data-fid="'+f.id+'" onclick="openAssignToolModal(this.dataset.fid)" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6);border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer;flex-shrink:0" title="Assigner à un outil">&#128193;</button>';
         h+='<button data-fid="'+f.id+'" onclick="handleFileDownload(this.dataset.fid)" style="background:rgba(255,255,255,.9);border:none;color:#0a0a08;border-radius:9px;padding:7px 15px;font-size:13px;font-weight:900;cursor:pointer;flex-shrink:0" title="Télécharger">&#8595;</button>';
         h+='<button data-fid="'+f.id+'" onclick="handleFileDelete(this.dataset.fid)" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#f87171;border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;flex-shrink:0">&#10005;</button>';
         h+='</div>';
