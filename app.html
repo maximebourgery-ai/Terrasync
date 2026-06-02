@@ -3588,25 +3588,15 @@ function _fsLoadFilesCloud(){
     var _greetClient = S.clients.find(function(x){return x.id===portalCid;});
     var _greetName = _greetClient ? _greetClient.name : '';
 
-    var greetMsg = 'Bonjour ! Je suis votre assistant de recherche documentaire'
-      + (_greetName ? ' pour **'+_greetName+'**' : '') + '.
-
-'
-      + 'J’ai analysé **'+readable.length+' fichier(s)** :
-' + typeSummary
-      + (toolSummary ? '
-_Sources : '+toolSummary+'_' : '')
-      + '
-
-**Ce que je peux faire :**
-'
-      + '• Collez une fiche de poste → je trouve les CVs/credentials qui matchent
-'
-      + '• Cherchez un profil ("CF fonctionnel SIE") → je croise webapps + CVs + sourcings
-'
-      + '• Recherche par compétences, secteur, ou mots-clés dans le contenu réel
-'
-      + '• Analyse et comparaison de vos documents de sourcing';
+    var greetMsg = 'Bonjour ! Je suis votre assistant de recherche documentaire'
+      + (_greetName ? ' pour **'+_greetName+'**' : '') + '.\n\n'
+      + 'J\u2019ai analys\u00e9 **'+readable.length+' fichier(s)** :\n' + typeSummary
+      + (toolSummary ? '\n_Sources : '+toolSummary+'_' : '')
+      + '\n\n**Ce que je peux faire :**\n'
+      + '\u2022 Collez une fiche de poste \u2192 je trouve les CVs/credentials qui matchent\n'
+      + '\u2022 Cherchez un profil ("CF fonctionnel SIE") \u2192 je croise webapps + CVs + sourcings\n'
+      + '\u2022 Recherche par comp\u00e9tences, secteur, ou mots-cl\u00e9s dans le contenu r\u00e9el\n'
+      + '\u2022 Analyse et comparaison de vos documents de sourcing';
 
     _fsAddMsg('assistant', greetMsg);
     _fsShowSuggestions([
