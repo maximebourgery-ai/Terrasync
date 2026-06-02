@@ -52,8 +52,10 @@ CREATE TABLE IF NOT EXISTS portal_users (
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','revoked')),
   tool_ids JSONB NOT NULL DEFAULT '[]',
   last TEXT NOT NULL DEFAULT '',
+  must_change_password BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS portal_users_cid ON portal_users(workspace_id, cid);
 CREATE UNIQUE INDEX IF NOT EXISTS portal_users_email_cid ON portal_users(email, cid, workspace_id);
 

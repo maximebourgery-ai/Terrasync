@@ -2587,27 +2587,32 @@ function applyAdminPwdReset(){
   u.pwdResetAt=new Date().toISOString();
   persist();
 
-  // Also apply to portal localStorage
-  var portalUsers=portalGetUsers(u.cid);
-  var pu=portalUsers.find(function(x){return x.id===uid});
-  if(pu){
-    pu.pwd=newPwd;
-    pu.mustChangePassword=true;
-    pu.pwdResetBy='admin';
-    pu.pwdResetAt=new Date().toISOString();
-    portalSaveUsers(u.cid,portalUsers);
-  }
-
   // Clear input immediately (RGPD: don't leave pwd visible)
   inp.value='';
   inp.type='password';
 
-  ok.textContent='✓ Mot de passe réinitialisé. Le client devra le changer à sa prochaine connexion.';
+  ok.textContent='✓ Réinitialisation en cours...';
   ok.style.display='block';
-  renderDetail();renderKanban();
 
-  // Auto-close after 2s
-  setTimeout(function(){hideOv('ov-pwd-reset');},2500);
+  // Charger les portal_users depuis Supabase avant de modifier (cache admin vide)
+  portalLoadUsers(u.cid, function(portalUsers){
+    var pu=portalUsers.find(function(x){return x.id===uid});
+    if(pu){
+      pu.pwd=newPwd;
+      pu.mustChangePassword=true;
+      pu.pwdResetBy='admin';
+      pu.pwdResetAt=new Date().toISOString();
+    } else {
+      // L'utilisateur n'est pas encore dans portal_users — créer l'entrée
+      portalUsers.push({id:uid,cid:u.cid,name:u.name,email:u.email,pwd:newPwd,
+        status:u.status||'approved',toolIds:u.toolIds||[],last:u.last||'',
+        mustChangePassword:true,pwdResetBy:'admin',pwdResetAt:new Date().toISOString()});
+    }
+    portalSaveUsers(u.cid,portalUsers);
+    ok.textContent='✓ Mot de passe réinitialisé. Le client devra le changer à sa prochaine connexion.';
+    renderDetail();renderKanban();
+    setTimeout(function(){hideOv('ov-pwd-reset');},2500);
+  });
 }
 
 var editingToolId=null;
@@ -4313,18 +4318,26 @@ function _portalInitAfterLoad(cid,c){
   stylePortalLeft(c);
   var _sess=null;
   try{_sess=JSON.parse(localStorage.getItem('ps_'+cid)||'null');}catch(e){}
+  // Si un token de réinitialisation est en attente, afficher le formulaire de nouveau mot de passe
+  if(resetToken){
+    showPortalTab('l');
+    ['pfl','pfr','pff'].forEach(function(id){var el=$(id);if(el)el.style.display='none'});
+    ['ptl','ptr','ptf'].forEach(function(id){var el=$(id);if(el)el.classList.remove('on')});
+    if($('pfrs'))$('pfrs').style.display='block';
+    return;
+  }
   if(_sess&&_sess.exp>Date.now()){
     var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
     if(_u){
       portalMe=_u;
-      
+
       // IMPORTANT : Ajouter ?portal= dans l'URL pour que F5 fonctionne
       var currentUrl = new URL(window.location.href);
       if(!currentUrl.searchParams.has('portal')){
         currentUrl.searchParams.set('portal', cid);
         window.history.replaceState({}, '', currentUrl.toString());
       }
-      
+
       $('p-login').style.display='none';
       showPortalApp();
       // Charger l'index des outils stockés (pour handleToolClick)
@@ -4599,14 +4612,14 @@ function applyForcedPasswordChange(){
 
   // RGPD: replace temp pwd, clear all reset flags
   u.pwd=p;
-  delete u.mustChangePassword;
+  u.mustChangePassword=false;
   delete u.pwdResetBy;
   delete u.pwdResetAt;
   portalSaveUsers(portalCid,users);
 
   // Also update S.users
   var su=S.users.find(function(x){return x.id===portalMe.id});
-  if(su){su.pwd=p;delete su.mustChangePassword;delete su.pwdResetBy;delete su.pwdResetAt;persist();}
+  if(su){su.pwd=p;su.mustChangePassword=false;delete su.pwdResetBy;delete su.pwdResetAt;persist();}
 
   portalMe=u;
 
@@ -5835,11 +5848,6 @@ function parseUrl(){
         var d=JSON.parse(atob(decodeURIComponent(reset)));
         if(d.exp>Date.now()){
           resetToken=reset;
-          setTimeout(function(){
-            ['pfl','pfr','pff'].forEach(function(id){var el=$(id);if(el)el.style.display='none'});
-            if($('pfrs'))$('pfrs').style.display='block';
-            ['ptl','ptr','ptf'].forEach(function(id){var el=$(id);if(el)el.classList.remove('on')});
-          },100);
         }
       }catch(ex){}
     }
@@ -5866,7 +5874,8 @@ function portalSaveUsers(cid, users){
       id: u.id, cid: cid,
       name: u.name||'', email: u.email||'',
       pwd: u.pwd||'', status: u.status||'pending',
-      tool_ids: u.toolIds||[], last: u.last||''
+      tool_ids: u.toolIds||[], last: u.last||'',
+      must_change_password: u.mustChangePassword||false
     };
   });
   sbFetch('POST', '/rest/v1/portal_users', rows, {'Prefer':'resolution=merge-duplicates'}).catch(function(){});
@@ -5877,7 +5886,8 @@ function portalLoadUsers(cid, cb){
     if(!Array.isArray(rows)) rows=[];
     var users = rows.map(function(r){
       return {id:r.id,cid:r.cid,name:r.name,email:r.email,pwd:r.pwd,
-        status:r.status,toolIds:r.tool_ids||[],last:r.last||''};
+        status:r.status,toolIds:r.tool_ids||[],last:r.last||'',
+        mustChangePassword:r.must_change_password||false};
     });
     _portalUsersCache[cid] = users;
     cb&&cb(users);
