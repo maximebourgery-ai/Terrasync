@@ -5033,6 +5033,34 @@ function portalDeleteFile(cid,fid){
   portalSaveFiles(cid,files);
 }
 
+function cleanupFiles(){
+  if(!portalCid||!portalMe){toast('Session portail requise',false);return;}
+  if(!confirm('Supprimer les doublons et les fichiers corrompus/non-téléchargeables ?'))return;
+  var files=portalGetFiles(portalCid);
+  var before=files.length;
+  // Supprimer les corrompus (contenu absent, trop court, ou marqué local uniquement sur cet appareil)
+  var valid=files.filter(function(f){
+    var cnt=f.content||'';
+    if(cnt==='__LOCAL_ONLY__'){
+      try{cnt=localStorage.getItem('terr_file_'+f.id)||'';}catch(e){}
+    }
+    return cnt&&cnt!=='__LOCAL_ONLY__'&&cnt.length>=10;
+  });
+  // Supprimer les doublons (même nom + même taille de contenu, garder le plus récent)
+  var seen={};
+  var deduped=[];
+  valid.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);}).forEach(function(f){
+    var sig=(f.name||'')+'|'+(f.content||'').length;
+    if(!seen[sig]){seen[sig]=true;deduped.push(f);}
+  });
+  var removed=before-deduped.length;
+  if(removed===0){toast('✅ Aucun doublon ni fichier corrompu trouvé');return;}
+  portalSaveFiles(portalCid,deduped);
+  jbPushFiles(portalCid,deduped);
+  toast('🗑️ '+removed+' fichier'+(removed>1?'s supprimés':' supprimé')+' (doublons/corrompus)');
+  setTimeout(function(){renderPortalApp();setTimeout(function(){showPortalSection('files');},50);},300);
+}
+
 function reclassifyFiles(){
   if(!portalCid||!portalMe){toast('Session portail requise',false);return;}
   var files=portalGetFiles(portalCid);
@@ -5182,6 +5210,7 @@ function _doRenderPortalApp(c){
   h+='</div>';
   h+='<button onclick="openFileSearchChat()" style="background:'+color+';border:none;color:'+(isLight(color)?'#000':'#fff')+';border-radius:12px;padding:11px 18px;font-family:var(--cfnt);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;flex-shrink:0;box-shadow:0 4px 14px rgba('+colorRgb+',.35)">&#129302; IA <span style="opacity:.7;font-size:10px">(8 cr)</span></button>';
   h+='<button onclick="reclassifyFiles()" title="Reclassifier les fichiers sans outil associé" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);border-radius:12px;padding:11px 14px;font-size:15px;cursor:pointer;flex-shrink:0">&#128260;</button>';
+  h+='<button onclick="cleanupFiles()" title="Supprimer les doublons et fichiers corrompus" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);border-radius:12px;padding:11px 14px;font-size:15px;cursor:pointer;flex-shrink:0">&#128465;</button>';
   h+='</div>';
   h+='<div id="ai-search-result" style="display:none;background:#131726;border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:18px;margin-bottom:16px;font-size:13px;color:rgba(255,255,255,.8);line-height:1.7"></div>';
   var allFilesF=portalGetFiles(portalCid);
