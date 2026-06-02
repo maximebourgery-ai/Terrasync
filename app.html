@@ -4295,8 +4295,11 @@ function portalShowConnecting(cid){
 }
 
 function _portalConnectFetch(cid){
+  var _sub=document.getElementById('portal-conn-sub');
+  if(_sub)_sub.textContent='Chargement du workspace…';
   // Charger workspace depuis Supabase
   jbPull(function(ok){
+  if(_sub)_sub.textContent=ok?'Chargement des utilisateurs…':'Mode hors-ligne — utilisation du cache local…';
     var c=S.clients.find(function(x){return x.id===cid});
     if(!ok){
       // Fallback cache local
@@ -5871,6 +5874,8 @@ function portalGetUsers(cid){
 }
 function portalSaveUsers(cid, users){
   _portalUsersCache[cid] = users;
+  // Backup localStorage pour fallback offline
+  try{localStorage.setItem('terr_'+cid+'_u', JSON.stringify(users));}catch(e){}
   // Sync cloud asynchrone : upsert
   if(!users || !users.length) return;
   var rows = users.map(function(u){
