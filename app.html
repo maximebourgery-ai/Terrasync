@@ -1030,7 +1030,7 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
         <div style="font-size:11px;font-weight:700;color:var(--am);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">2 — Informations</div>
         <div style="display:grid;grid-template-columns:1fr 52px;gap:10px;margin-bottom:10px">
           <div><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Nom <span style="color:var(--ared)">*</span></label>
-            <input id="t-n" placeholder="Ex: Analyseur de CV, Dashboard..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;color:#0a0a08">
+            <input id="t-n" placeholder="Ex: Analyseur de CV, Dashboard..." style="width:100%;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">
           </div>
           <div><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Icône</label>
             <div id="icon-picker-btn" onclick="toggleIconPicker()" style="width:52px;height:38px;border:1.5px solid var(--abdr);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;background:#fff"><span id="t-i-display">&#129302;</span></div>
@@ -2461,12 +2461,12 @@ function processTF(file){
   var r=new FileReader();
   r.onload=function(e){
     draftFile={name:file.name,size:file.size,type:ext,raw:e.target.result};
-    $('mdrop').classList.add('has');$('md-ico').textContent=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
+    $('mdrop').classList.add('has');$('md-ico').innerHTML=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
     $('t-fprev').style.display='flex';$('t-fpi').textContent=fIco(file.name);$('t-fpn').textContent=file.name;$('t-fps').textContent=fmtSz(file.size);
   };
   if(ext==='zip')r.readAsArrayBuffer(file);else r.readAsText(file);
 }
-function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').textContent='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
+function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').innerHTML='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
 function addStep(){draftSteps.push({id:'s'+uid(),name:'',type:'System Prompt',prompt:''});renderSteps()}
 function renderSteps(){
   $('step-draft').innerHTML=draftSteps.map(function(s,i){
@@ -2617,7 +2617,6 @@ function editTool(id){
   editingToolId=id;
   // Pre-fill the modal
   $('t-n').value=t.name||'';
-  $('t-i').value=t.icon||'';
   $('t-d').value=t.desc||'';
   if(t.type==='ai'){
     setTT('ai');
@@ -2631,13 +2630,33 @@ function editTool(id){
     // Charger le HTML depuis cache ou Supabase pour afficher l'etat actuel
     var _showCurrentHtml = function(html){
       if(html){
-        $('md-ico').textContent='&#127760;';
+        $('md-ico').innerHTML='&#127760;';
         $('md-t').textContent='Fichier actuel ✓';
-        $('md-s').textContent=t.name+'.html • '+fmtSz(html.length)+' • Déployer un nouveau fichier pour remplacer';
+        $('md-s').textContent=(t.fileName||t.name+'.html')+' • '+fmtSz(html.length)+' • Déposer un nouveau fichier pour remplacer';
         $('mdrop').classList.add('has');
         // Stocker en cache pour le redéploiement éventuel
         if(!_toolHtmlCache[t.id]) _toolHtmlCache[t.id] = html;
         if(!t.htmlContent) t.htmlContent = html;
+        // Bouton télécharger le fichier actuel
+        var dlBtn=document.getElementById('edit-tool-dl');
+        if(!dlBtn){
+          dlBtn=document.createElement('button');
+          dlBtn.id='edit-tool-dl';
+          dlBtn.className='btn btn-g';
+          dlBtn.style.cssText='margin-top:8px;width:100%;font-size:12px';
+          $('mdrop').parentNode.insertBefore(dlBtn,$('mdrop').nextSibling);
+        }
+        dlBtn.textContent='↓ Télécharger le fichier actuel';
+        var _h=html,_n=t.name;
+        dlBtn.onclick=function(){
+          var blob=new Blob([_h],{type:'text/html;charset=utf-8'});
+          var url=URL.createObjectURL(blob);
+          var a=document.createElement('a');
+          a.href=url;a.download=_n.replace(/[^a-z0-9_\-]/gi,'-')+'.html';
+          document.body.appendChild(a);a.click();document.body.removeChild(a);
+          setTimeout(function(){URL.revokeObjectURL(url)},3000);
+          toast('↓ Fichier téléchargé');
+        };
       }
     };
     var cached = _toolHtmlCache[t.id] || t.htmlContent;
@@ -2648,6 +2667,9 @@ function editTool(id){
       loadToolHtml(t.id, _showCurrentHtml);
     }
   }
+  // Set icon AFTER setTT (which resets it to default)
+  $('t-i').value=t.icon||'';
+  var disp=$('t-i-display');if(disp)disp.textContent=t.icon||'🤖';
   // Change modal title and button
   var mttl=document.querySelector('#ov-tool .mttl');
   if(mttl)mttl.textContent="Modifier l'outil";
