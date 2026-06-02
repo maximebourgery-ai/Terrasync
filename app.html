@@ -5048,6 +5048,12 @@ function applyForcedPasswordChange(){
   // Save session so the next page reload restores access directly
   try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}));}catch(e){}
 
+  // Nettoyer l'URL (supprimer ?reset= si présent)
+  try{
+    var _cp=window.location.pathname+'?portal='+portalCid;
+    if(window.location.search.indexOf('reset=')>=0) history.replaceState(null,'',_cp);
+  }catch(e){}
+
   // Remove forced overlay
   var overlay=document.getElementById('forced-pwd-change');
   if(overlay)overlay.remove();
@@ -5178,8 +5184,13 @@ function doNewPwd(){
     // Signaler le nouveau mot de passe au gestionnaire du navigateur
     _notifyPasswordManager(u.email||u.name||'', p);
     resetToken=null;
+    // Nettoyer le token de l'URL pour éviter que le formulaire réapparaisse au rechargement
+    try{
+      var _cleanUrl=window.location.pathname+'?portal='+(data.cid||portalCid||'');
+      history.replaceState(null,'',_cleanUrl);
+    }catch(e){}
     $('pfrs').style.display='none';showPortalTab('l');
-    $('p-lerr').textContent='Mot de passe reinitialise! Connectez-vous.';$('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';$('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
+    $('p-lerr').textContent='Mot de passe réinitialisé ! Connectez-vous.';$('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';$('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
   }catch(ex){err.textContent='Token invalide.';err.className='p-err on'}
 }
 
