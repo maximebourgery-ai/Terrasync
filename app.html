@@ -4728,6 +4728,8 @@ function showPortalApp(){
   _initPortalBg();
   renderPortalApp();
   setTimeout(updateCreditDisplay, 100);
+  // Relancer une web app si elle était ouverte avant le F5
+  setTimeout(_launchPendingTool, 300);
 }
 
 var PORTAL_PERSONAS=[
@@ -5633,6 +5635,13 @@ function openWebTool(t){
   window._currentToolName = t.name || '';
   window._currentToolId = t.id || '';
   window._currentToolIcon = t.icon || '🌐';
+  // Mettre à jour l'URL pour que F5 restaure la web app
+  if(portalCid && t.id){
+    var _u=new URL(window.location.href);
+    _u.searchParams.set('portal', portalCid);
+    _u.searchParams.set('tool', t.id);
+    window.history.replaceState({}, '', _u.toString());
+  }
   if(portalCid&&!deductCredits(portalCid,'web_app'))return;
   // HTML disponible en cache mémoire
   if(t.htmlContent && t.htmlContent.length>50){
@@ -5711,6 +5720,12 @@ function _launchToolHTML(html, name){
     viewer.remove();
     setTimeout(function(){URL.revokeObjectURL(url);},500);
     _pollLocalStorageCaptures();
+    // Retirer &tool= de l'URL quand la web app est fermée
+    if(portalCid){
+      var _u=new URL(window.location.href);
+      _u.searchParams.delete('tool');
+      window.history.replaceState({}, '', _u.toString());
+    }
   };
 
   setTimeout(function(){URL.revokeObjectURL(url);},30000);
@@ -5804,12 +5819,17 @@ function parseUrl(){
   var params=new URLSearchParams(window.location.search);
   var portal=params.get('portal');
   var reset=params.get('reset');
-  
+  var toolId=params.get('tool');
+
   // Si pas de ?portal= dans l'URL, NE PAS restaurer automatiquement
   // (permet d'aller sur l'admin en tapant juste l'URL du site)
-  
+
   if(portal){
     loadPortal(portal);
+    if(toolId){
+      // Relancer la web app après que le portail soit prêt (session restaurée)
+      window._pendingToolId = toolId;
+    }
     if(reset){
       try{
         var d=JSON.parse(atob(decodeURIComponent(reset)));
@@ -5825,6 +5845,23 @@ function parseUrl(){
     }
   } else {
     showScr('admin');
+  }
+}
+
+// Relancer une web app en attente après restauration de session
+function _launchPendingTool(){
+  var tid=window._pendingToolId;
+  if(!tid || !portalMe) return;
+  window._pendingToolId = null;
+  var t=S.tools.find(function(x){return x.id===tid;});
+  if(!t || t.type!=='web') return;
+  // Charger le HTML si nécessaire puis ouvrir
+  if(t.htmlContent || _toolHtmlCache[tid] || _toolContentIndex[tid]){
+    openWebTool(t);
+  } else {
+    loadToolHtml(tid, function(html){
+      if(html){ t.htmlContent=html; openWebTool(t); }
+    });
   }
 }
 
