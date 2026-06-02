@@ -4297,14 +4297,17 @@ function portalShowConnecting(cid){
 function _portalConnectFetch(cid){
   // Charger workspace depuis Supabase
   jbPull(function(ok){
+    var c=S.clients.find(function(x){return x.id===cid});
     if(!ok){
       // Fallback cache local
-      var c=S.clients.find(function(x){return x.id===cid});
       if(!c){portalShowOffline(cid,'Portail introuvable — vérifiez votre connexion.');return;}
-      _portalInitAfterLoad(cid,c);
+      stylePortalLeft(c);
+      // Tenter de charger les users quand même (avec leur propre timeout/fallback)
+      portalLoadUsers(cid,function(){
+        _portalInitAfterLoad(cid,c);
+      });
       return;
     }
-    var c=S.clients.find(function(x){return x.id===cid});
     if(!c){portalShowOffline(cid,'Portail introuvable (ID: '+cid+')');return;}
     stylePortalLeft(c);
     // Précharger les utilisateurs portail depuis Supabase
@@ -5882,8 +5885,15 @@ function portalSaveUsers(cid, users){
   sbFetch('POST', '/rest/v1/portal_users', rows, {'Prefer':'resolution=merge-duplicates'}).catch(function(){});
 }
 function portalLoadUsers(cid, cb){
+  var _done=false;
+  var _fallback=function(){
+    try{_portalUsersCache[cid]=JSON.parse(localStorage.getItem('terr_'+cid+'_u')||'[]');}catch(e){}
+    cb&&cb(_portalUsersCache[cid]||[]);
+  };
+  var _t=setTimeout(function(){if(!_done){_done=true;_fallback();}},8000);
   sbFetch('GET', '/rest/v1/portal_users?cid=eq.'+encodeURIComponent(cid))
   .then(function(rows){
+    if(_done)return;clearTimeout(_t);_done=true;
     if(!Array.isArray(rows)) rows=[];
     var users = rows.map(function(r){
       return {id:r.id,cid:r.cid,name:r.name,email:r.email,pwd:r.pwd,
@@ -5893,11 +5903,7 @@ function portalLoadUsers(cid, cb){
     _portalUsersCache[cid] = users;
     cb&&cb(users);
   })
-  .catch(function(){
-    // Fallback localStorage
-    try{_portalUsersCache[cid]=JSON.parse(localStorage.getItem('terr_'+cid+'_u')||'[]');}catch(e){}
-    cb&&cb(_portalUsersCache[cid]||[]);
-  });
+  .catch(function(){if(!_done){clearTimeout(_t);_done=true;_fallback();}});
 }
 function portalSendEmail(type,params,cb){
   var svc=Store.get('terr_ejs_svc'),key=Store.get('terr_ejs_key');
@@ -6203,8 +6209,10 @@ function swPushData(_unused, immediate) {
 
 // ── jbPull : charge workspace depuis Supabase ─────────────────────────
 function jbPull(cb) {
+  var _done=false;
+  var _t=setTimeout(function(){if(!_done){_done=true;cb&&cb(false);}},10000);
   sbFetch('GET', '/rest/v1/workspace?id=eq.'+_sbWsId+'&select=data')
-  .then(function(rows){
+  .then(function(rows){if(_done)return;clearTimeout(_t);_done=true;
     if(!rows || (rows && rows.error)) { cb&&cb(false); return; }
     if(!Array.isArray(rows) || rows.length === 0) {
       // Premier lancement : créer le workspace vide
@@ -6261,7 +6269,7 @@ function jbPull(cb) {
       cb&&cb(true);
     });
   })
-  .catch(function(){ cb&&cb(false); });
+  .catch(function(){if(!_done){clearTimeout(_t);_done=true;cb&&cb(false);}});
 }
 
 // ── Tool HTML : charger à la demande depuis tool_content ─────────────
