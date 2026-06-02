@@ -5574,7 +5574,6 @@ function reclassifyFiles(){
   function processBatch(idx){
     updateProgress(idx, Date.now()-startTime);
     if(idx>=total){
-      // Appliquer les classifications
       allAssignments.forEach(function(a){
         if(!a.tool_id)return;
         var f=files.find(function(x){return x.id===a.file_id;});
@@ -5589,7 +5588,6 @@ function reclassifyFiles(){
         if(seen[sig])return false; seen[sig]=true; return true;
       });
       var dupes=files.length-deduped.length;
-      // Fermer la barre
       var p=document.getElementById('_reclassify-progress');
       if(p){
         var bar=document.getElementById('_reclassify-bar');
