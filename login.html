@@ -124,26 +124,26 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.textContent = 'Connexion...';
   
   try {
-    // Chercher le portail de l'utilisateur
-    const { data, error } = await supabaseClient
-      .from('portal_users')
-      .select('cid')
-      .eq('email', email)
-      .single();
-    
-    if (error || !data) {
+    const resp = await fetch('/api/find-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok || !result.success || !result.portalId) {
       showToast('Email non reconnu. Demandez un accès d\'abord.', 'error');
       btn.disabled = false;
       btn.textContent = 'Se connecter →';
       return;
     }
-    
-    // Rediriger vers le portail
+
     showToast('Connexion réussie ! Redirection...', 'success');
     setTimeout(() => {
-      window.location.href = `/app.html?portal=${data.cid}`;
+      window.location.href = `/app.html?portal=${result.portalId}`;
     }, 1000);
-    
+
   } catch (err) {
     console.error('Login error:', err);
     showToast('Erreur de connexion. Réessayez.', 'error');
