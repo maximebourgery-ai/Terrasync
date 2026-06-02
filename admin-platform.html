@@ -189,6 +189,20 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
 .mbd{padding:16px 20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
 .mft{padding:12px 20px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
 @media(max-width:520px){.mft{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
+/* Force lisibilité dans la modale — indépendant du thème sombre de la page */
+.modal{color:#0f1f0a}
+.modal .fg input,.modal .fg select,.modal .fg textarea{color:#0f1f0a!important;background:#fff!important}
+.modal .fg input::placeholder,.modal .fg textarea::placeholder{color:rgba(15,31,10,.35)!important}
+.modal .fg label{color:#5a6e52}
+.modal .mttl{color:#0f1f0a}
+/* Tool type selector cards */
+.tg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.tc2{background:#f7f8f6;border:2px solid #d4e4cc;border-radius:10px;padding:12px 10px;cursor:pointer;text-align:center;transition:all .15s}
+.tc2:hover{border-color:#3a5a28;background:#eef4eb}
+.tc2.on{border-color:#3a5a28;background:#eef4eb;box-shadow:0 0 0 3px rgba(58,90,40,.12)}
+.tc2-ico{font-size:22px;margin-bottom:4px}
+.tc2-n{font-size:12px;font-weight:700;color:#0f1f0a;margin-bottom:2px}
+.tc2-d{font-size:10px;color:#5a6e52;line-height:1.4}
 
 /* TOAST */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px) scale(.97);z-index:9999;background:var(--dark);color:#fff;border-radius:var(--r2);padding:11px 20px;font-size:13px;font-weight:500;box-shadow:var(--sh3);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;max-width:320px;line-height:1.5;white-space:nowrap}
@@ -1690,7 +1704,9 @@ function openNewTool(){
   var mpw=$('t-mp-welcome');if(mpw)mpw.value='';
   $('step-draft').innerHTML='';clearTF();setTT('web');
   var mttl=document.querySelector('#ov-tool .mttl');if(mttl)mttl.textContent="Nouvel outil";
-  if($('t-cta'))$('t-cta').textContent='Deployer';showOv('ov-tool');
+  if($('t-cta'))$('t-cta').textContent='Deployer';
+  var old=document.getElementById('edit-tool-dl');if(old)old.remove();
+  showOv('ov-tool');
 }
 function mdropOv(e){e.preventDefault();$('mdrop').classList.add('over')}
 function mdropLv(e){$('mdrop').classList.remove('over')}
@@ -1702,12 +1718,12 @@ function processTF(file){
   var r=new FileReader();
   r.onload=function(e){
     draftFile={name:file.name,size:file.size,type:ext,raw:e.target.result};
-    $('mdrop').classList.add('has');$('md-ico').textContent=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
+    $('mdrop').classList.add('has');$('md-ico').innerHTML=fIco(file.name);$('md-t').textContent='Fichier pret';$('md-s').textContent=file.name+' - '+fmtSz(file.size);
     $('t-fprev').style.display='flex';$('t-fpi').textContent=fIco(file.name);$('t-fpn').textContent=file.name;$('t-fps').textContent=fmtSz(file.size);
   };
   if(ext==='zip')r.readAsArrayBuffer(file);else r.readAsText(file);
 }
-function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').textContent='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
+function clearTF(){draftFile=null;$('mdrop').classList.remove('has','over');$('md-ico').innerHTML='&#128194;';$('md-t').textContent='Glissez votre fichier ici';$('md-s').textContent='HTML ou ZIP';$('t-fprev').style.display='none';$('t-f').value=''}
 function addStep(){draftSteps.push({id:'s'+uid(),name:'',type:'System Prompt',prompt:''});renderSteps()}
 function renderSteps(){
   $('step-draft').innerHTML=draftSteps.map(function(s,i){
@@ -1849,7 +1865,6 @@ function editTool(id){
   editingToolId=id;
   // Pre-fill the modal
   $('t-n').value=t.name||'';
-  $('t-i').value=t.icon||'';
   $('t-d').value=t.desc||'';
   if(t.type==='ai'){
     setTT('ai');
@@ -1861,13 +1876,43 @@ function editTool(id){
     draftFile=null;
     clearTF();
     if(t.htmlContent){
-      // Show current file info
-      $('md-ico').textContent='&#127760;';
+      // File present — show info + download button
+      $('md-ico').innerHTML='&#127760;';
       $('md-t').textContent='Fichier actuel';
-      $('md-s').textContent=t.name+'.html - '+fmtSz(t.htmlContent.length);
+      $('md-s').textContent=(t.fileName||t.name+'.html')+' — '+fmtSz(t.htmlContent.length);
+      $('mdrop').classList.add('has');
+      var existingDl=document.getElementById('edit-tool-dl');
+      if(!existingDl){
+        existingDl=document.createElement('button');
+        existingDl.id='edit-tool-dl';
+        existingDl.className='btn btn-g';
+        existingDl.style.cssText='margin-top:8px;width:100%;font-size:12px';
+        $('mdrop').parentNode.insertBefore(existingDl,$('mdrop').nextSibling);
+      }
+      existingDl.textContent='↓ Télécharger le fichier actuel';
+      var _tName=t.name;var _tHtml=t.htmlContent;
+      existingDl.onclick=function(){
+        var blob=new Blob([_tHtml],{type:'text/html;charset=utf-8'});
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=url;a.download=_tName.replace(/[^a-z0-9_\-]/gi,'-')+'.html';
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        setTimeout(function(){URL.revokeObjectURL(url)},3000);
+        toast('↓ Fichier téléchargé');
+      };
+    } else {
+      // File content lost — show last known metadata + prompt to re-upload
+      var old=document.getElementById('edit-tool-dl');if(old)old.remove();
+      $('md-ico').innerHTML='&#9888;';
+      $('md-t').textContent='Fichier non disponible';
+      var metaInfo=t.fileName?(t.fileName+(t.fileSize?' — '+fmtSz(t.fileSize):'')):'Rechargez le fichier HTML ou ZIP';
+      $('md-s').textContent=metaInfo;
       $('mdrop').classList.add('has');
     }
   }
+  // Set icon AFTER setTT (which resets it to default)
+  $('t-i').value=t.icon||'';
+  var disp=$('t-i-display');if(disp)disp.textContent=t.icon||'🤖';
   // Change modal title and button
   var mttl=document.querySelector('#ov-tool .mttl');
   if(mttl)mttl.textContent="Modifier l'outil";
@@ -2351,13 +2396,60 @@ function portalDeleteFile(cid,fid){
   portalSaveFiles(cid,files);
 }
 
+// Repair existing binary files stored without encoding flag
+// Called once on load to migrate legacy files
+function repairBinaryFiles(cid){
+  var files=portalGetFiles(cid);
+  var changed=false;
+  files.forEach(function(f){
+    if(!f.encoding&&f.mime&&_isBinaryMime(f.mime)&&f.content){
+      // Check if content looks like base64 (no non-base64 chars, length multiple of 4)
+      var b64=f.content;
+      if(b64.indexOf(',')>-1&&b64.startsWith('data:'))b64=b64.split(',')[1];
+      if(/^[A-Za-z0-9+/]+=*$/.test(b64.trim())){
+        f.encoding='base64';
+        changed=true;
+      }
+    }
+  });
+  if(changed)portalSaveFiles(cid,files);
+}
+
 function portalDownloadFile(f){
-  var blob=new Blob([f.content],{type:f.mime||'text/plain;charset=utf-8'});
+  var content=f.content||'';
+  var mime=f.mime||'text/plain;charset=utf-8';
+  var blob;
+  try{
+    if(f.encoding==='base64'||_isBinaryMime(mime)){
+      // Content stored as base64 — decode to binary before creating Blob
+      var b64=content;
+      // Strip data URI prefix if present (data:<mime>;base64,<data>)
+      if(b64.indexOf(',')>-1&&b64.startsWith('data:'))b64=b64.split(',')[1];
+      var binary=atob(b64);
+      var bytes=new Uint8Array(binary.length);
+      for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      blob=new Blob([bytes],{type:mime});
+    } else {
+      blob=new Blob([content],{type:mime});
+    }
+  }catch(e){
+    // Fallback: plain text blob
+    blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+  }
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;a.download=f.name;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url)},3000);
+}
+
+function _isBinaryMime(mime){
+  if(!mime)return false;
+  var binaryTypes=['application/vnd','application/octet','application/zip','application/pdf',
+    'application/msword','application/excel','application/powerpoint',
+    'image/','audio/','video/'];
+  for(var i=0;i<binaryTypes.length;i++){if(mime.toLowerCase().indexOf(binaryTypes[i])===0||mime.toLowerCase().indexOf(binaryTypes[i])>-1)return true;}
+  return false;
 }
 
 function loadPortal(cid){
@@ -2878,6 +2970,7 @@ function _doRenderPortalApp(c){
 
   // FILES SECTION
   h+='<div id="psec-files" style="display:none">';
+  repairBinaryFiles(portalCid);
   var allFiles=portalGetFiles(portalCid);
   // Search bar + AI search
   h+='<div style="display:flex;gap:8px;margin-bottom:20px;align-items:center">';
@@ -3348,6 +3441,38 @@ function saveAiResponse(content, toolName, toolIcon){
   setTimeout(function(){showPortalSection('files');},50);
 }
 
+// Bridge API for web tools running inside paov-frame (sandboxed iframe)
+// Uses postMessage so no allow-same-origin needed (avoids double-download bug)
+// Web tools call: window.parent.postMessage({type:'TERR_SAVE_FILE', name, content, mime, encoding}, '*')
+window.addEventListener('message', function(e){
+  var d=e.data;
+  if(!d||typeof d!=='object')return;
+  if(d.type==='TERR_SAVE_FILE'){
+    if(!d.name||!d.content)return;
+    var t=S.tools.find(function(x){return x.id===window._currentToolId})||{};
+    var file={
+      name:d.name,
+      content:d.content,
+      mime:d.mime||'application/octet-stream',
+      encoding:d.encoding||null,
+      toolId:t.id||'',
+      toolName:t.name||'Outil',
+      toolIcon:t.icon||'📄',
+      userId:portalMe?portalMe.id:'',
+      userName:portalMe?portalMe.name:'Utilisateur'
+    };
+    if(portalCid){
+      portalAddFile(portalCid,file);
+      renderPortalApp();
+      toast('✓ Fichier "'+d.name+'" sauvegardé dans Mes fichiers');
+    }
+  }
+  if(d.type==='TERR_GET_USER'){
+    var frame=document.getElementById('paov-frame');
+    if(frame&&frame.contentWindow)frame.contentWindow.postMessage({type:'TERR_USER_RESPONSE',user:portalMe?{id:portalMe.id,name:portalMe.name,email:portalMe.email}:null,cid:portalCid},'*');
+  }
+});
+
 function handleToolClick(tid){
   var t=S.tools.find(function(x){return x.id===tid});if(!t)return;
   if(t.type==='web'&&t.htmlContent)openWebTool(t);
@@ -3602,6 +3727,8 @@ function showCreditCost(actionType, cb){
 // JSONBIN.IO CLOUD SYNC — fully automatic, zero config
 // ================================================================
 var _jbSyncing=false;
+var _jbPendingData=null;
+var _jbRetryTimer=null;
 var _JB_KEY='$2a$10$TDFZxCJqU3xH/sCC.S9TZeFdmKPSHn3ptw42RuQRIiBtU5SngJtBK';
 var _JB_NAME='terrassement-io-data';
 
@@ -3632,16 +3759,41 @@ function jbFetch(method, path, payload, extraHeaders){
 function swPushData(data){
   var bin=jbBin();
   if(!bin)return;
+  // Always store the latest data to push — never silently drop a save
+  _jbPendingData=data;
   if(_jbSyncing)return;
+  _swPushFlush();
+}
+function _swPushFlush(){
+  if(!_jbPendingData)return;
+  var bin=jbBin();
+  if(!bin)return;
   _jbSyncing=true;
+  var payload=_jbPendingData;
+  _jbPendingData=null;
   jbSetStatus('sync','Sauvegarde...');
-  jbFetch('PUT','/v3/b/'+bin,data)
+  jbFetch('PUT','/v3/b/'+bin,payload)
   .then(function(d){
     _jbSyncing=false;
-    if(d&&!d.error){jbSetStatus('ok','Synchro ✓ '+new Date().toLocaleTimeString('fr-FR'))}
-    else{jbSetStatus('err','Erreur sync: '+(d&&d.message||d&&d.error||'?'))}
+    if(d&&!d.error){
+      jbSetStatus('ok','Synchro ✓ '+new Date().toLocaleTimeString('fr-FR'));
+      // Flush any save that arrived while we were syncing
+      if(_jbPendingData)_swPushFlush();
+    } else {
+      jbSetStatus('err','Erreur sync: '+(d&&d.message||d&&d.error||'?'));
+      // Retry in 5s — put data back so it retries
+      if(!_jbPendingData)_jbPendingData=payload;
+      clearTimeout(_jbRetryTimer);
+      _jbRetryTimer=setTimeout(function(){_jbSyncing=false;_swPushFlush();},5000);
+    }
   })
-  .catch(function(e){_jbSyncing=false;jbSetStatus('err','Hors ligne')});
+  .catch(function(e){
+    _jbSyncing=false;
+    jbSetStatus('err','Hors ligne');
+    if(!_jbPendingData)_jbPendingData=payload;
+    clearTimeout(_jbRetryTimer);
+    _jbRetryTimer=setTimeout(_swPushFlush,5000);
+  });
 }
 
 function jbPull(cb){
@@ -3650,8 +3802,17 @@ function jbPull(cb){
   jbFetch('GET','/v3/b/'+bin+'/latest',null,{'X-Bin-Meta':'false'})
   .then(function(d){
     if(d&&d.clients){
-      S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];
-      Store.set('terr1',d);
+      // Only apply cloud data if it has at least as many tools as local to avoid overwriting with stale/empty state
+      var localToolCount=(S.tools||[]).length;
+      var cloudToolCount=(d.tools||[]).length;
+      if(cloudToolCount>=localToolCount){
+        S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];
+        Store.set('terr1',d);
+      } else {
+        // Cloud has fewer tools than local — push local data to cloud to reconcile
+        jbSetStatus('sync','Reconciliation cloud...');
+        swPushData({clients:S.clients,tools:S.tools,users:S.users});
+      }
       jbSetStatus('ok','Synchro ✓ '+new Date().toLocaleTimeString('fr-FR'));
       cb&&cb(true);
     } else {cb&&cb(false)}
@@ -3683,9 +3844,10 @@ function jbInit(){
     jbPull(function(ok){
       if(ok){jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();}
       else{
-        jbSetStatus('err','Bin inaccessible — recréation...');
-        Store.del('terr_jb_bin');
-        jbCreateAndInit();
+        // Network error or temporary issue — do NOT destroy the bin ID.
+        // Keep local data intact and retry in 30s.
+        jbSetStatus('err','Sync cloud échoué — données locales préservées (retry dans 30s)');
+        setTimeout(function(){jbPull(function(ok2){if(ok2){jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();}else{jbSetStatus('err','Cloud inaccessible — données locales actives');}});},30000);
       }
     });
     return;
@@ -3958,7 +4120,7 @@ function buildPortalHTML(c){
     // TOOL SCREEN
     html += '<div class="ts" id="tsc">';
     html += '<div class="thd"><button class="tbk" onclick="closeT()">&#8592; Retour</button><div class="tti" id="tti"></div><div style="width:7px;height:7px;border-radius:50%;background:#00d464;margin-left:auto"></div></div>';
-    html += '<iframe id="tfr" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" style="flex:1;border:none;width:100%"></iframe>';
+    html += '<iframe id="tfr" sandbox="allow-scripts allow-forms allow-popups allow-modals" style="flex:1;border:none;width:100%"></iframe>';
     html += '</div>';
 
     // JAVASCRIPT - all in one block, no template literals
@@ -4039,6 +4201,27 @@ function buildPortalHTML(c){
     html += 'function renderCards(tools){var el=document.getElementById("agd");if(!tools.length){el.innerHTML="<p style=\'padding:60px;text-align:center;color:rgba(255,255,255,.2);grid-column:1/-1\'>Aucun outil disponible.</p>";return}el.innerHTML=tools.map(function(t,i){return mkCard(t,i)}).join("")}';
     html += 'function openT(el){var tid=el.dataset.tid;var t=TD.find(function(x){return x.id===tid});if(!t)return;if(!t.htmlContent||!t.htmlContent.trim()){alert("Outil non disponible - aucun fichier deploye");return}document.getElementById("tti").textContent=t.name;document.getElementById("tfr").srcdoc=t.htmlContent;document.getElementById("tsc").className="ts on"}';
     html += 'function closeT(){document.getElementById("tsc").className="ts";var f=document.getElementById("tfr");f.srcdoc=""}';
+    // Bridge: portal listens for postMessage from tool iframe (no allow-same-origin needed)
+    // Web tools send: window.parent.postMessage({type:'TERR_SAVE_FILE', name, content, mime, encoding:'base64'}, '*')
+    html += 'var _me2=null;try{_me2=JSON.parse(localStorage.getItem(UK)||"null")}catch(e){}';
+    html += 'window.addEventListener("message",function(e){';
+    html += '  var d=e.data;if(!d||typeof d!=="object")return;';
+    html += '  if(d.type==="TERR_SAVE_FILE"){';
+    html += '    if(!d.name||!d.content)return;';
+    html += '    var fk="terr_"+CID+"_files";';
+    html += '    var files=[];try{files=JSON.parse(localStorage.getItem(fk)||"[]")}catch(ex){}';
+    html += '    var now=Date.now();';
+    html += '    var f={id:Math.random().toString(36).slice(2,10),name:d.name,content:d.content,mime:d.mime||"application/octet-stream",encoding:d.encoding||null,createdAt:now,expiresAt:now+30*24*3600*1000,toolId:d.toolId||"",toolName:d.toolName||"Outil",toolIcon:d.toolIcon||"📄",userId:_me2?_me2.id:"",userName:_me2?_me2.name:"Utilisateur"};';
+    html += '    files.unshift(f);if(files.length>100)files=files.slice(0,100);';
+    html += '    try{localStorage.setItem(fk,JSON.stringify(files))}catch(ex){}';
+    html += '    var fr=document.getElementById("tfr");';
+    html += '    if(fr&&fr.contentWindow)fr.contentWindow.postMessage({type:"TERR_SAVE_OK",name:d.name},"*");';
+    html += '  }';
+    html += '  if(d.type==="TERR_GET_USER"){';
+    html += '    var fr2=document.getElementById("tfr");';
+    html += '    if(fr2&&fr2.contentWindow)fr2.contentWindow.postMessage({type:"TERR_USER_RESPONSE",user:_me2?{id:_me2.id,name:_me2.name,email:_me2.email}:null,cid:CID},"*");';
+    html += '  }';
+    html += '});
     html += 'function logout(){try{localStorage.removeItem(UK);localStorage.removeItem(UK+"_exp")}catch(e){}document.getElementById("as").className="as";document.getElementById("ls").style.display="flex"}';
     html += 'document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});';
     html += 'document.getElementById("rp2").addEventListener("keydown",function(e){if(e.key==="Enter")doReg()});';
