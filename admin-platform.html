@@ -1317,7 +1317,7 @@ function renderCdBody(c,idx){
       var p=pal(idx+ti+1);var isW=t.type==='web';
       var st={deployed:'<span class="badge bg-g"><span class="bdot"></span>Deploye</span>',pending:'<span class="badge bg-amber">En attente</span>',error:'<span class="badge bg-red">Erreur</span>'}[t.status]||'';
       var openCb=isW&&t.status==='deployed'?'launchAdminTool(this.dataset.tid)':'toast(\'Non deploye\',false)';
-      var hasContent=isW?(t.htmlContent&&t.htmlContent.length>100):true;
+      var hasContent=isW?(t.htmlContent&&t.htmlContent.length>100||t.status==='deployed'):true;
       var mc=getMangaChar(typeof t.avatarIdx==='number'?t.avatarIdx:ti);
       var isMp=t.type==='masterprompt';
       var loadBadge=isW?(hasContent
@@ -1342,6 +1342,7 @@ function renderCdBody(c,idx){
         +'<div style="display:flex;gap:5px;flex-wrap:wrap">'
         +'<button class="btn btn-o btn-xs" data-tid="'+t.id+'" onclick="'+openCb+'">Ouvrir</button>'
         +'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="editTool(this.dataset.tid)" style="border-color:rgba(0,0,0,.12)">Modifier</button>'
+        +(isW?'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="showToolVersions(this.dataset.tid)" style="border-color:rgba(0,0,0,.12)" title="Historique versions">&#128336;</button>':'')
         +'<button class="btn btn-g btn-xs" data-tid="'+t.id+'" onclick="cycleAvatar(this.dataset.tid)" style="border-color:rgba(0,0,0,.12)" title="Changer l\'avatar">&#128100;</button>'
         +'<button class="btn btn-r btn-xs" data-tid="'+t.id+'" onclick="delTool(this.dataset.tid)">Suppr.</button>'
         +'</div></div></div>';
@@ -1877,11 +1878,10 @@ function editTool(id){
     setTT('web');
     draftFile=null;
     clearTF();
-    if(t.htmlContent){
-      // File present — show info + download button
+    var _showEditToolFile=function(html){
       $('md-ico').innerHTML='&#127760;';
       $('md-t').textContent='Fichier actuel';
-      $('md-s').textContent=(t.fileName||t.name+'.html')+' — '+fmtSz(t.htmlContent.length);
+      $('md-s').textContent=(t.fileName||t.name+'.html')+' — '+fmtSz(html.length);
       $('mdrop').classList.add('has');
       var existingDl=document.getElementById('edit-tool-dl');
       if(!existingDl){
@@ -1892,7 +1892,7 @@ function editTool(id){
         $('mdrop').parentNode.insertBefore(existingDl,$('mdrop').nextSibling);
       }
       existingDl.textContent='↓ Télécharger le fichier actuel';
-      var _tName=t.name;var _tHtml=t.htmlContent;
+      var _tName=t.name;var _tHtml=html;
       existingDl.onclick=function(){
         var blob=new Blob([_tHtml],{type:'text/html;charset=utf-8'});
         var url=URL.createObjectURL(blob);
@@ -1902,14 +1902,25 @@ function editTool(id){
         setTimeout(function(){URL.revokeObjectURL(url)},3000);
         toast('↓ Fichier téléchargé');
       };
+    };
+    if(t.htmlContent){
+      _showEditToolFile(t.htmlContent);
     } else {
-      // File content lost — show last known metadata + prompt to re-upload
-      var old=document.getElementById('edit-tool-dl');if(old)old.remove();
-      $('md-ico').innerHTML='&#9888;';
-      $('md-t').textContent='Fichier non disponible';
-      var metaInfo=t.fileName?(t.fileName+(t.fileSize?' — '+fmtSz(t.fileSize):'')):'Rechargez le fichier HTML ou ZIP';
-      $('md-s').textContent=metaInfo;
+      // Tenter de charger depuis Supabase
+      $('md-ico').innerHTML='&#8987;';
+      $('md-t').textContent='Chargement...';
+      $('md-s').textContent='';
       $('mdrop').classList.add('has');
+      var old=document.getElementById('edit-tool-dl');if(old)old.remove();
+      loadToolHtml(t.id,function(html){
+        if(html){t.htmlContent=html;_showEditToolFile(html);}
+        else{
+          $('md-ico').innerHTML='&#9888;';
+          $('md-t').textContent='Fichier non disponible';
+          var metaInfo=t.fileName?(t.fileName+(t.fileSize?' — '+fmtSz(t.fileSize):'')):'Rechargez le fichier HTML ou ZIP';
+          $('md-s').textContent=metaInfo;
+        }
+      });
     }
   }
   // Set icon AFTER setTT (which resets it to default)
@@ -1973,7 +1984,14 @@ function runDp(steps,onDone){
   }
   next();
 }
-function launchAdminTool(tid){var t=S.tools.find(function(x){return x.id===tid});if(!t||!t.htmlContent){toast('Non disponible',false);return}openWebTool(t)}
+function launchAdminTool(tid){
+  var t=S.tools.find(function(x){return x.id===tid});if(!t){toast('Non disponible',false);return;}
+  if(t.htmlContent){openWebTool(t);return;}
+  loadToolHtml(tid,function(html){
+    if(html){t.htmlContent=html;openWebTool(t);}
+    else toast('Non disponible — aucun fichier chargé',false);
+  });
+}
 
 // ADMIN PREVIEW
 function previewAsAdmin(){
@@ -3746,6 +3764,26 @@ function sbFetch(method,path,payload,extra){
 }
 function saveToolHtml(toolId,html,cb){
   var now=new Date().toISOString();
+  // Archive la version précédente avant d'écraser (max 5 versions)
+  sbFetch('GET','/rest/v1/tool_content?id=eq.'+encodeURIComponent(toolId)+'&select=html,updated_at')
+  .then(function(rows){
+    if(rows&&rows.length&&rows[0].html&&rows[0].html!==html){
+      sbFetch('POST','/rest/v1/tool_versions',
+        {tool_id:toolId,workspace_id:'main',name:'',html:rows[0].html,archived_at:rows[0].updated_at||now},
+        {'Prefer':'return=minimal'}
+      ).then(function(){
+        sbFetch('GET','/rest/v1/tool_versions?tool_id=eq.'+encodeURIComponent(toolId)+'&order=archived_at.desc&select=id')
+        .then(function(vers){
+          if(vers&&vers.length>5){
+            vers.slice(5).forEach(function(v){
+              sbFetch('DELETE','/rest/v1/tool_versions?id=eq.'+v.id).catch(function(){});
+            });
+          }
+        });
+      }).catch(function(){});
+    }
+  }).catch(function(){});
+  // Sauvegarde la nouvelle version
   sbFetch('POST','/rest/v1/tool_content',
     {id:toolId,workspace_id:'main',name:'',html:html,updated_at:now},
     {'Prefer':'resolution=merge-duplicates'}
@@ -3755,6 +3793,63 @@ function loadToolHtml(toolId,cb){
   sbFetch('GET','/rest/v1/tool_content?id=eq.'+encodeURIComponent(toolId)+'&select=html')
   .then(function(rows){cb&&cb(rows&&rows.length?rows[0].html:null);})
   .catch(function(){cb&&cb(null);});
+}
+function showToolVersions(tid){
+  var t=S.tools.find(function(x){return x.id===tid});if(!t)return;
+  var ov=document.getElementById('ov-versions');
+  if(!ov){
+    ov=document.createElement('div');ov.id='ov-versions';ov.className='ov';
+    ov.innerHTML='<div class="ovc" style="max-width:700px;width:95%">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">'
+      +'<div><div style="font-family:var(--cfnt);font-size:18px;font-weight:900">&#128336; Historique versions</div>'
+      +'<div style="font-size:12px;color:var(--am)" id="vhdr"></div></div>'
+      +'<button onclick="hideOv(\'ov-versions\')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--am)">&#10005;</button>'
+      +'</div>'
+      +'<div id="vlist" style="max-height:60vh;overflow-y:auto"></div>'
+      +'</div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('vhdr').textContent=t.name;
+  var vl=document.getElementById('vlist');
+  vl.innerHTML='<div style="text-align:center;padding:20px;color:var(--am)">Chargement...</div>';
+  showOv('ov-versions');
+  sbFetch('GET','/rest/v1/tool_versions?tool_id=eq.'+encodeURIComponent(tid)+'&order=archived_at.desc&select=id,archived_at,html')
+  .then(function(rows){
+    if(!rows||!rows.length){
+      vl.innerHTML='<div style="text-align:center;padding:30px;color:var(--am)"><div style="font-size:28px;margin-bottom:8px">&#128336;</div><div>Aucune version archivée</div><div style="font-size:11px;margin-top:4px">Les versions sont sauvegardées automatiquement à chaque déploiement</div></div>';
+      return;
+    }
+    vl.innerHTML=rows.map(function(v,i){
+      var d=new Date(v.archived_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      var sz=v.html?Math.round(v.html.length/1024)+'KB':'?';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--abdr)">'
+        +'<div><div style="font-size:13px;font-weight:600">Version '+(rows.length-i)+'</div>'
+        +'<div style="font-size:11px;color:var(--am)">'+d+' • '+sz+'</div></div>'
+        +'<div style="display:flex;gap:8px">'
+        +'<button data-vid="'+v.id+'" data-tid="'+tid+'" onclick="restoreToolVersion(this.dataset.vid,this.dataset.tid)" class="btn btn-p btn-xs">&#8635; Restaurer</button>'
+        +'</div></div>';
+    }).join('');
+  }).catch(function(){
+    vl.innerHTML='<div style="text-align:center;padding:20px;color:var(--ared)">Erreur de chargement (table tool_versions absente ?)</div>';
+  });
+}
+function restoreToolVersion(vid,tid){
+  if(!confirm('Restaurer cette version ? La version actuelle sera archivée.'))return;
+  sbFetch('GET','/rest/v1/tool_versions?id=eq.'+vid+'&select=html,name')
+  .then(function(rows){
+    if(!rows||!rows[0]||!rows[0].html){toast('Version introuvable',false);return;}
+    var t=S.tools.find(function(x){return x.id===tid;});
+    saveToolHtml(tid,rows[0].html,function(ok){
+      if(ok){
+        if(t){t.htmlContent=rows[0].html;}
+        toast('Version restaurée ✓');
+        hideOv('ov-versions');
+        renderDetail();
+      } else {
+        toast('Erreur restauration',false);
+      }
+    });
+  }).catch(function(){toast('Erreur',false);});
 }
 
 // ================================================================
