@@ -2372,12 +2372,21 @@ function syncUserToPortal(u){
     [{id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,tool_ids:u.toolIds||[],last:u.last||''}],
     {'Prefer':'resolution=merge-duplicates'}
   ).catch(function(){});
-  // Cache local
+  // Cache mémoire
   if(!_portalUsersCache[u.cid]) _portalUsersCache[u.cid]=[];
   var cache=_portalUsersCache[u.cid];
   var i=cache.findIndex(function(x){return x.id===u.id;});
   if(i>-1) cache[i]=Object.assign(cache[i],{status:u.status,toolIds:u.toolIds||[]});
   else cache.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
+  // Cache localStorage — fallback offline et cohérence avec le portail
+  try{
+    var lsKey='terr_'+u.cid+'_u';
+    var lsUsers=JSON.parse(localStorage.getItem(lsKey)||'[]');
+    var li=lsUsers.findIndex(function(x){return x.id===u.id;});
+    if(li>-1)lsUsers[li]=Object.assign(lsUsers[li],{status:u.status,toolIds:u.toolIds||[]});
+    else lsUsers.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
+    localStorage.setItem(lsKey,JSON.stringify(lsUsers));
+  }catch(e){}
 }
 
 function importCode(){
@@ -5672,13 +5681,20 @@ function portalDownloadFile(f){
 
 function renderPortalApp(){
   var c=S.clients.find(function(x){return x.id===portalCid});if(!c)return;
-  // Pull files from cloud first, then render
-  if(!_filesCache[portalCid]){
-    jbPullFiles(portalCid,function(){_doRenderPortalApp(c); updateCreditDisplay();});
-    return;
-  }
-  _doRenderPortalApp(c);
-  updateCreditDisplay();
+  // Re-fetch portal_users depuis Supabase pour avoir les toolIds à jour
+  // (l'admin peut avoir modifié les accès depuis la dernière session)
+  portalLoadUsers(portalCid,function(users){
+    if(portalMe&&users){
+      var fresh=users.find(function(u){return u.id===portalMe.id;});
+      if(fresh)portalMe=fresh;
+    }
+    if(!_filesCache[portalCid]){
+      jbPullFiles(portalCid,function(){_doRenderPortalApp(c);updateCreditDisplay();});
+      return;
+    }
+    _doRenderPortalApp(c);
+    updateCreditDisplay();
+  });
 }
 function _doRenderPortalApp(c){
   if(!portalMe)return;
