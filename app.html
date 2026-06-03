@@ -2367,22 +2367,32 @@ function _autoGrantNewTool(toolId, cid){
     });
 }
 function syncUserToPortal(u){
-  // Mise à jour Supabase (upsert)
-  sbFetch('POST','/rest/v1/portal_users',
-    [{id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,tool_ids:u.toolIds||[],last:u.last||''}],
-    {'Prefer':'resolution=merge-duplicates'}
-  ).catch(function(){});
+  if(!u||!u.email||!u.cid)return;
+  var patch={tool_ids:u.toolIds||[],status:u.status};
+  // PATCH par email+cid : cible l'enregistrement existant sans risque de doublon sur la PK
+  sbFetch('PATCH',
+    '/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid),
+    patch,{'Prefer':'return=minimal'}
+  ).then(function(r){
+    // Si aucun enregistrement trouvé (PATCH sur 0 lignes), créer l'entrée
+    if(r===null||r&&Array.isArray(r)&&r.length===0){
+      sbFetch('POST','/rest/v1/portal_users',
+        [{id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,tool_ids:u.toolIds||[],last:u.last||''}],
+        {'Prefer':'resolution=merge-duplicates'}
+      ).catch(function(){});
+    }
+  }).catch(function(){});
   // Cache mémoire
   if(!_portalUsersCache[u.cid]) _portalUsersCache[u.cid]=[];
   var cache=_portalUsersCache[u.cid];
-  var i=cache.findIndex(function(x){return x.id===u.id;});
-  if(i>-1) cache[i]=Object.assign(cache[i],{status:u.status,toolIds:u.toolIds||[]});
+  var byEmail=cache.findIndex(function(x){return x.email===u.email&&x.cid===u.cid;});
+  if(byEmail>-1) cache[byEmail]=Object.assign(cache[byEmail],{status:u.status,toolIds:u.toolIds||[]});
   else cache.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
-  // Cache localStorage — fallback offline et cohérence avec le portail
+  // Cache localStorage
   try{
     var lsKey='terr_'+u.cid+'_u';
     var lsUsers=JSON.parse(localStorage.getItem(lsKey)||'[]');
-    var li=lsUsers.findIndex(function(x){return x.id===u.id;});
+    var li=lsUsers.findIndex(function(x){return x.email===u.email&&x.cid===u.cid;});
     if(li>-1)lsUsers[li]=Object.assign(lsUsers[li],{status:u.status,toolIds:u.toolIds||[]});
     else lsUsers.push({id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});
     localStorage.setItem(lsKey,JSON.stringify(lsUsers));
