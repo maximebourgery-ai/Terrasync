@@ -1626,6 +1626,12 @@ function renderKanban(){
 }
 function toggleTool(uid,tid){var u=S.users.find(function(x){return x.id===uid});if(!u)return;u.toolIds=u.toolIds||[];var i=u.toolIds.indexOf(tid);if(i>-1)u.toolIds.splice(i,1);else u.toolIds.push(tid);persist();renderKanban();syncUserToPortal(u)}
 function revokeUser(uid){var u=S.users.find(function(x){return x.id===uid});if(!u)return;u.status='revoked';persist();syncUserToPortal(u);renderKanban();toast('Acces revoques')}
+function _autoGrantNewTool(toolId,cid){
+  S.users.filter(function(u){return u.cid===cid&&u.status==='approved'&&u.toolIds&&u.toolIds.length;})
+    .forEach(function(u){
+      if(!u.toolIds.includes(toolId)){u.toolIds.push(toolId);syncUserToPortal(u);}
+    });
+}
 function syncUserToPortal(u){try{var k='terr_'+u.cid+'_u';var pu=JSON.parse(localStorage.getItem(k)||'[]');var i=pu.findIndex(function(x){return x.id===u.id});if(i>-1){pu[i]=Object.assign(pu[i],{status:u.status,toolIds:u.toolIds||[]});}else{pu.push({id:u.id,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});}localStorage.setItem(k,JSON.stringify(pu));}catch(e){}}
 
 function importCode(){
@@ -1780,10 +1786,12 @@ function saveTool(){
     var welcome=($('t-mp-welcome')||{}).value||'';
     if(!prompt.trim()){toast('Redigez votre MasterPrompt',false);return}
     var mpHtml=buildMasterPromptHTML(n,$('t-i').value||'&#127775;',$('t-d').value||'',prompt,welcome,($('t-mp-m')||{}).value||'claude-sonnet-4-20250514');
-    S.tools.push({id:uid(),cid:activeC,name:n,icon:$('t-i').value||'&#127775;',desc:$('t-d').value,type:'masterprompt',prompt:prompt,welcome:welcome,model:($('t-mp-m')||{}).value||'claude-sonnet-4-20250514',htmlContent:mpHtml,status:'deployed'});
+    var _mpId=uid();
+    S.tools.push({id:_mpId,cid:activeC,name:n,icon:$('t-i').value||'&#127775;',desc:$('t-d').value,type:'masterprompt',prompt:prompt,welcome:welcome,model:($('t-mp-m')||{}).value||'claude-sonnet-4-20250514',htmlContent:mpHtml,status:'deployed'});
+    _autoGrantNewTool(_mpId,activeC);
     hideOv('ov-tool');persist();renderSb();renderDetail();toast('MasterPrompt cree ✓');
   }
-  else{if(!draftSteps.length){toast('Ajoutez au moins une etape',false);return}S.tools.push({id:uid(),cid:activeC,name:n,icon:$('t-i').value||'?',desc:$('t-d').value,type:'ai',model:$('t-m').value,steps:draftSteps.map(function(s){return Object.assign({},s)}),status:'deployed'});draftSteps=[];hideOv('ov-tool');persist();renderSb();renderDetail();toast('Assistant cree')}
+  else{if(!draftSteps.length){toast('Ajoutez au moins une etape',false);return}var _aiId=uid();S.tools.push({id:_aiId,cid:activeC,name:n,icon:$('t-i').value||'?',desc:$('t-d').value,type:'ai',model:$('t-m').value,steps:draftSteps.map(function(s){return Object.assign({},s)}),status:'deployed'});draftSteps=[];_autoGrantNewTool(_aiId,activeC);hideOv('ov-tool');persist();renderSb();renderDetail();toast('Assistant cree')}
 }
 function delTool(id){S.tools=S.tools.filter(function(t){return t.id!==id});persist();renderSb();renderDetail();toast('Outil supprime')}
 
@@ -1968,6 +1976,7 @@ async function deployWeb(name,existingId){
       html=preprocess(html);t.raw=null;t.status='deployed';t.path='?portal='+activeC+'&tool='+t.id;
       saveToolHtml(t.id,html,function(){
         t.htmlContent=html;
+        if(!existingId)_autoGrantNewTool(t.id,activeC);
         persist();renderSb();renderDetail();toast('"'+name+'" deploye');
       });
     }catch(err){t.status='error';t.raw=null;persist();renderSb();renderDetail();toast('Erreur: '+err.message,false)}
