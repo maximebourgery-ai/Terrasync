@@ -1040,7 +1040,9 @@ function persist(){
   // Bake bin ID too so deployed HTML includes it
   var binId=Store.get('terr_jb_bin');
   if(el&&binId)el.setAttribute('data-b',binId);
-  swPushData(data);
+  // Strip htmlContent before JSONBin push — HTML stocké séparément dans Supabase tool_content
+  var jbData={clients:S.clients,tools:S.tools.map(function(t){var r=Object.assign({},t);delete r.raw;delete r.htmlContent;return r}),users:S.users};
+  swPushData(jbData);
 }
 
 function restore(){
@@ -1952,8 +1954,11 @@ async function deployWeb(name,existingId){
         if(!f)throw new Error('Aucun index.html dans le ZIP');
         html=await f.async('string');
       }else{html=t.raw}
-      html=preprocess(html);t.htmlContent=html;t.raw=null;t.status='deployed';t.path='?portal='+activeC+'&tool='+t.id;
-      persist();renderSb();renderDetail();toast('"'+name+'" deploye');
+      html=preprocess(html);t.raw=null;t.status='deployed';t.path='?portal='+activeC+'&tool='+t.id;
+      saveToolHtml(t.id,html,function(){
+        t.htmlContent=html;
+        persist();renderSb();renderDetail();toast('"'+name+'" deploye');
+      });
     }catch(err){t.status='error';t.raw=null;persist();renderSb();renderDetail();toast('Erreur: '+err.message,false)}
   });
 }
@@ -3477,7 +3482,12 @@ function handleToolClick(tid){
   var t=S.tools.find(function(x){return x.id===tid});if(!t)return;
   if(t.type==='web'&&t.htmlContent)openWebTool(t);
   else if(t.type==='ai'||t.type==='masterprompt')openAiTool(t);
-  else if(t.type==='web'&&!t.htmlContent)toast('Outil non disponible — aucun fichier chargé',false);
+  else if(t.type==='web'&&!t.htmlContent){
+    loadToolHtml(t.id,function(html){
+      if(html){t.htmlContent=html;openWebTool(t);}
+      else toast('Outil non disponible — aucun fichier chargé',false);
+    });
+  }
   else toast('Outil non disponible',false);
 }
 function openWebTool(t){
@@ -3721,6 +3731,30 @@ function showCreditCost(actionType, cb){
     +'<button onclick="creditConfirmResult(true)" style="flex:1;background:'+color+';border:none;color:'+(isLight(color)?'#000':'#fff')+';border-radius:8px;padding:10px;font-family:var(--cfnt);font-size:14px;font-weight:900;cursor:pointer;text-transform:uppercase">Confirmer</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
+}
+
+// ================================================================
+// SUPABASE — stockage HTML des outils (table tool_content)
+// ================================================================
+var PROXY='/api/anthropic';
+function sbFetch(method,path,payload,extra){
+  var sbUrl=Store.get('terr_sb_url');if(!sbUrl)return Promise.reject('no-sb');
+  var b={_sb:true,method:method,path:path};
+  if(payload!==undefined)b.payload=payload;
+  if(extra)b.headers=extra;
+  return fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json()});
+}
+function saveToolHtml(toolId,html,cb){
+  var now=new Date().toISOString();
+  sbFetch('POST','/rest/v1/tool_content',
+    {id:toolId,workspace_id:'main',name:'',html:html,updated_at:now},
+    {'Prefer':'resolution=merge-duplicates'}
+  ).then(function(){cb&&cb(true);}).catch(function(){cb&&cb(false);});
+}
+function loadToolHtml(toolId,cb){
+  sbFetch('GET','/rest/v1/tool_content?id=eq.'+encodeURIComponent(toolId)+'&select=html')
+  .then(function(rows){cb&&cb(rows&&rows.length?rows[0].html:null);})
+  .catch(function(){cb&&cb(null);});
 }
 
 // ================================================================
