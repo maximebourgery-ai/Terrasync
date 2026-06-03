@@ -7393,6 +7393,23 @@ function jbShowSetupModal(){
 }
 
 // ── Initialisation principale ─────────────────────────────────────────
+// Migration : ajoute tous les outils déployés aux utilisateurs approuvés qui en manquent
+// Tourne une fois par session admin, silencieusement
+function _migrateGrantAllTools(){
+  var changed=false;
+  S.users.filter(function(u){return u.status==='approved'&&u.toolIds&&u.toolIds.length;})
+    .forEach(function(u){
+      var deployedIds=S.tools.filter(function(t){return t.cid===u.cid&&t.status==='deployed';}).map(function(t){return t.id;});
+      var missing=deployedIds.filter(function(id){return !u.toolIds.includes(id);});
+      if(missing.length){
+        missing.forEach(function(id){u.toolIds.push(id);});
+        syncUserToPortal(u);
+        changed=true;
+      }
+    });
+  if(changed)persist();
+}
+
 function jbInit(){
   var sbUrl=Store.get('terr_sb_url');
   var sbAnon=Store.get('terr_sb_anon');
@@ -7405,6 +7422,7 @@ function jbInit(){
   jbPull(function(ok){
     if(ok){
       sbStartRealtime(); // Démarrer le WebSocket temps réel
+      _migrateGrantAllTools(); // Migration : s'assurer que tous les utilisateurs ont accès à tous les outils déployés
       renderSb();
       if(S.clients.length&&!activeC)selClient(S.clients[0].id);
       else if(activeC&&S.clients.find(function(x){return x.id===activeC}))renderDetail();
