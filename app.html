@@ -2357,6 +2357,15 @@ function renderKanban(){
 }
 function toggleTool(uid,tid){var u=S.users.find(function(x){return x.id===uid});if(!u)return;u.toolIds=u.toolIds||[];var i=u.toolIds.indexOf(tid);if(i>-1)u.toolIds.splice(i,1);else u.toolIds.push(tid);persist();renderKanban();syncUserToPortal(u)}
 function revokeUser(uid){var u=S.users.find(function(x){return x.id===uid});if(!u)return;u.status='revoked';persist();syncUserToPortal(u);renderKanban();toast('Acces revoques')}
+// Auto-accorde l'accès au nouvel outil à tous les utilisateurs approuvés du client
+// Si un utilisateur a une liste toolIds explicite, on y ajoute le nouvel outil
+// Si toolIds est vide, il voit déjà tout — rien à faire
+function _autoGrantNewTool(toolId, cid){
+  S.users.filter(function(u){return u.cid===cid&&u.status==='approved'&&u.toolIds&&u.toolIds.length;})
+    .forEach(function(u){
+      if(!u.toolIds.includes(toolId)){u.toolIds.push(toolId);syncUserToPortal(u);}
+    });
+}
 function syncUserToPortal(u){
   // Mise à jour Supabase (upsert)
   sbFetch('POST','/rest/v1/portal_users',
@@ -2531,9 +2540,10 @@ function saveTool(){
     S.tools.push({id:mpId,cid:activeC,name:n,icon:$('t-i').value||'&#127775;',desc:$('t-d').value,type:'masterprompt',prompt:prompt,welcome:welcome,model:($('t-mp-m')||{}).value||'claude-sonnet-4-20250514',status:'deployed'});
     // Sauver le HTML dans tool_content (table séparée)
     saveToolHtml(mpId, _sbWsId, n, mpHtml);
+    _autoGrantNewTool(mpId, activeC);
     hideOv('ov-tool');persist();_refreshAdmin();toast('MasterPrompt cr\u00e9\u00e9 \u2713');
   }
-  else{if(!draftSteps.length){toast('Ajoutez au moins une etape',false);return}S.tools.push({id:uid(),cid:activeC,name:n,icon:$('t-i').value||'?',desc:$('t-d').value,type:'ai',model:$('t-m').value,steps:draftSteps.map(function(s){return Object.assign({},s)}),status:'deployed'});draftSteps=[];hideOv('ov-tool');persist();_refreshAdmin();toast('Assistant cr\u00e9\u00e9 \u2713')}
+  else{if(!draftSteps.length){toast('Ajoutez au moins une etape',false);return}var _aiId=uid();S.tools.push({id:_aiId,cid:activeC,name:n,icon:$('t-i').value||'?',desc:$('t-d').value,type:'ai',model:$('t-m').value,steps:draftSteps.map(function(s){return Object.assign({},s)}),status:'deployed'});draftSteps=[];_autoGrantNewTool(_aiId,activeC);hideOv('ov-tool');persist();_refreshAdmin();toast('Assistant cr\u00e9\u00e9 \u2713')}
 }
 function delTool(id){S.tools=S.tools.filter(function(t){return t.id!==id});deleteToolHtml(id);persist();renderSb();renderDetail();toast('Outil supprimé')}
 
@@ -2717,6 +2727,7 @@ async function deployWeb(name,existingId){
       }else{html=t.raw}
       html=preprocess(html);t.raw=null;t.status='deployed';t.path='?portal='+activeC+'&tool='+t.id;
       saveToolHtml(t.id, _sbWsId, t.name, html, function(){
+        _autoGrantNewTool(t.id, activeC);
         persist();renderSb();renderDetail();toast('"'+name+'" deploye ✓');
       }, true);
     }catch(err){t.status='error';t.raw=null;persist();renderSb();renderDetail();toast('Erreur: '+err.message,false)}
