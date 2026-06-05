@@ -2823,7 +2823,11 @@ function showResetLinks(cid){
 function forceReset(uid){
   var pwd=prompt('Nouveau mot de passe (8 caractères minimum) :');
   if(!pwd||pwd.length<8){toast('Minimum 8 caractères',false);return}
-  var u=S.users.find(function(x){return x.id===uid});if(u){u.pwd=pwd;syncUserToPortal(u);persist();toast('Mot de passe reinitialise')}
+  var u=S.users.find(function(x){return x.id===uid});
+  if(!u)return;
+  hashPassword(pwd).then(function(hashed){
+    u.pwd=hashed;syncUserToPortal(u);persist();toast('Mot de passe reinitialise');
+  });
 }
 
 // QA TEST
@@ -4719,9 +4723,12 @@ function _portalInitAfterLoad(cid,c){
     if($('pfrs'))$('pfrs').style.display='block';
     return;
   }
-  if(_sess&&_sess.exp>Date.now()){
-    var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
-    if(_u){
+  if(_sess&&_sess.exp>Date.now()&&_sess.uid&&_sess.token){
+    // Verify session token against DB to prevent forgery
+    sbFetch('GET','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_sess.uid)+'&session_token=eq.'+encodeURIComponent(_sess.token)+'&status=eq.approved&select=id&limit=1').then(function(rows){
+      if(!rows||!rows.length){showPortalTab('l');return;}
+      var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
+      if(!_u){showPortalTab('l');return;}
       portalMe=_u;
 
       // IMPORTANT : Ajouter ?portal= dans l'URL pour que F5 fonctionne
@@ -4747,8 +4754,8 @@ function _portalInitAfterLoad(cid,c){
         if(getClientCredits(portalCid)<=0)showCreditExhausted();
         else clearCreditExhausted();
       },100);
-      return;
-    }
+    }).catch(function(){showPortalTab('l');});
+    return;
   }
   showPortalTab('l');
 }
@@ -4905,8 +4912,12 @@ function showPortalTab(t){
 // Tab onclick handled inline in HTML (ptl/ptr/ptf buttons)
 // showPortalTab('l') called from loadPortal on init
 $('papp-out').onclick=function(){
-  portalMe=null;
   if(isAdminPreview){exitPreview();return}
+  var _oldSess=null;try{_oldSess=JSON.parse(localStorage.getItem('ps_'+portalCid)||'null')}catch(e){}
+  if(_oldSess&&_oldSess.uid){
+    sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_oldSess.uid),{session_token:null},{Prefer:'return=minimal'}).catch(function(){});
+  }
+  portalMe=null;
   try{if(portalCid)localStorage.removeItem('ps_'+portalCid)}catch(e){}
   $('papp').classList.remove('on');
   $('p-login').style.display='flex';$('p-login').classList.add('on');
@@ -4932,33 +4943,60 @@ function doLogin(){
   var err=$('p-lerr');err.className='p-err';
   if(!e||!p){err.textContent='Remplissez votre email et mot de passe.';err.className='p-err on';return}
   err.textContent='Connexion...';err.className='p-err on';
+  // Rate limiting : vérifier avant de charger les users
+  var _rlKey='prl_'+portalCid;
+  var _rl=null;try{_rl=JSON.parse(localStorage.getItem(_rlKey)||'null')}catch(e){}
+  if(_rl&&_rl.until&&_rl.until>Date.now()){
+    var _mins=Math.ceil((_rl.until-Date.now())/60000);
+    err.textContent='Trop de tentatives. Réessayez dans '+_mins+' min.';err.className='p-err on';return;
+  }
   portalLoadUsers(portalCid, function(){
     _doLoginCheck(e, p);
   });
 }
-function _doLoginCheck(e, p){
+async function _doLoginCheck(e, p){
   var err=$('p-lerr');err.className='p-err';
+  var _rlKey='prl_'+portalCid;
   var users=portalGetUsers(portalCid);
-  var u=null,byEmail=null;
-  for(var i=0;i<users.length;i++){if(users[i].email===e){byEmail=users[i];if(users[i].pwd===p){u=users[i];break}}}
-  if(!u){
-    if(!byEmail)err.textContent='Aucun compte avec cet email. Creez un compte.';
-    else if(byEmail.status==='pending')err.textContent='Compte en attente de validation par votre administrateur.';
-    else err.textContent='Mot de passe incorrect.';
+  var byEmail=null;
+  for(var i=0;i<users.length;i++){if(users[i].email===e){byEmail=users[i];break;}}
+  if(!byEmail){
+    err.textContent='Aucun compte avec cet email. Creez un compte.';err.className='p-err on';return;
+  }
+  if(byEmail.status==='pending'){err.textContent='Compte en attente de validation par votre administrateur.';err.className='p-err on';return;}
+  var pwdOk=await verifyPassword(p,byEmail.pwd);
+  if(!pwdOk){
+    // Incrémenter le compteur d'échecs
+    var _rl=null;try{_rl=JSON.parse(localStorage.getItem(_rlKey)||'null')}catch(e){}
+    var _count=((_rl&&_rl.count)||0)+1;
+    var _lock=_count>=5?{count:_count,until:Date.now()+15*60*1000}:{count:_count};
+    try{localStorage.setItem(_rlKey,JSON.stringify(_lock))}catch(e){}
+    err.textContent=_count>=5?'Compte verrouillé 15 min. Trop de tentatives.':'Mot de passe incorrect.';
     err.className='p-err on';return;
   }
+  // Succès — réinitialiser le compteur
+  try{localStorage.removeItem(_rlKey)}catch(e){}
+  var u=byEmail;
+  // Migration transparente : si pwd en clair → upgrader vers PBKDF2
+  if(u.pwd&&!u.pwd.startsWith('pbkdf2$')){
+    hashPassword(p).then(function(h){
+      u.pwd=h;
+      var users2=portalGetUsers(portalCid);
+      var ux=users2.find(function(x){return x.id===u.id;});
+      if(ux){ux.pwd=h;portalSaveUsers(portalCid,users2);}
+      var sx=S.users.find(function(x){return x.id===u.id;});
+      if(sx){sx.pwd=h;persist();}
+    });
+  }
   if(u.status==='pending'){err.textContent='Compte en attente de validation.';err.className='p-err on';return}
-  // RGPD: if admin forced a temp password, user MUST change it before access
   if(u.mustChangePassword){
-    portalMe=u;
-    u.last=new Date().toLocaleString('fr-FR');
-    portalSaveUsers(portalCid,users);
-    showForcedPasswordChange();
-    return;
+    portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
+    showForcedPasswordChange();return;
   }
   portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
-  // Save session with 1h expiry
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}))}catch(e){}
+  var _tok=crypto.randomUUID();
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,token:_tok,exp:Date.now()+2*60*60*1000}))}catch(e){}
+  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{session_token:_tok},{Prefer:'return=minimal'}).catch(function(){});
   showPortalApp();
 }
 
@@ -5055,25 +5093,24 @@ function applyForcedPasswordChange(){
   var u=users.find(function(x){return x.id===portalMe.id});
   if(!u){err.textContent='Erreur - rechargez la page.';err.className='p-err on';return}
 
-  // RGPD: replace temp pwd, clear all reset flags
-  u.pwd=p;
-  u.mustChangePassword=false;
-  delete u.pwdResetBy;
-  delete u.pwdResetAt;
-  portalSaveUsers(portalCid,users);
-
-  // Also update S.users and persist to workspace
-  var su=S.users.find(function(x){return x.id===portalMe.id});
-  if(su){su.pwd=p;su.mustChangePassword=false;delete su.pwdResetBy;delete su.pwdResetAt;}
-  persist();
+  // RGPD: replace temp pwd (hashé PBKDF2), clear all reset flags
+  hashPassword(p).then(function(hashed){
+    u.pwd=hashed;u.mustChangePassword=false;delete u.pwdResetBy;delete u.pwdResetAt;
+    portalSaveUsers(portalCid,users);
+    var su=S.users.find(function(x){return x.id===portalMe.id});
+    if(su){su.pwd=hashed;su.mustChangePassword=false;delete su.pwdResetBy;delete su.pwdResetAt;}
+    persist();
+  });
 
   portalMe=u;
 
   // Signaler le nouveau mot de passe au gestionnaire du navigateur
   _notifyPasswordManager(u.email||u.name||'', p);
 
-  // Save session so the next page reload restores access directly
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}));}catch(e){}
+  // Save session with token so the next page reload restores access directly
+  var _ftok=crypto.randomUUID();
+  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{session_token:_ftok},{Prefer:'return=minimal'}).catch(function(){});
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,token:_ftok,exp:Date.now()+2*60*60*1000}));}catch(e){}
 
   // Nettoyer l'URL (supprimer ?reset= si présent)
   try{
@@ -5218,10 +5255,12 @@ function doNewPwd(){
     }
     var r=rows[0];
     var targetCid=r.cid||portalCid;
-    var users=portalGetUsers(targetCid);
-    var u=users.find(function(x){return x.id===r.id});
-    if(u){u.pwd=p;portalSaveUsers(targetCid,users);}
-    var au=S.users.find(function(x){return x.id===r.id});if(au){au.pwd=p;persist();}
+    hashPassword(p).then(function(hashed){
+      var users=portalGetUsers(targetCid);
+      var u=users.find(function(x){return x.id===r.id});
+      if(u){u.pwd=hashed;portalSaveUsers(targetCid,users);}
+      var au=S.users.find(function(x){return x.id===r.id});if(au){au.pwd=hashed;persist();}
+    });
     // Invalider le token en DB après usage
     sbFetch('PATCH',
       '/rest/v1/portal_users?id=eq.'+encodeURIComponent(r.id)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId),
@@ -6526,11 +6565,19 @@ async function sendChat(){
   var _sendBtn=$('pch-send');if(_sendBtn)_sendBtn.disabled=true;
   var inp=$('pch-inp');var text=inp.value.trim();
   if((!text&&!(window._pchFiles&&window._pchFiles.length))||!chatTool){_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+  var _portalAuth=null;
   if(portalCid&&chatTool){
     var m=chatTool.model||'';var tp=chatTool.type||'ai';
     var atype=tp==='masterprompt'?'masterprompt':m.includes('sonnet')?'ai_sonnet':'ai_haiku';
-    if(!deductCredits(portalCid,atype)){inp.value=text;_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
     var cc=CREDIT_COSTS[atype]||0;
+    // Client-side guard: fast feedback before server confirms
+    var _curCr=getClientCredits(portalCid);
+    if(cc>0&&_curCr<cc){showCreditAlert(cc,_curCr);inp.value=text;_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+    // Build portal auth payload for server-side credit deduction
+    var _sess=null;try{_sess=JSON.parse(localStorage.getItem('ps_'+portalCid)||'null')}catch(e){}
+    if(_sess&&_sess.token){
+      _portalAuth={uid:portalMe.id,token:_sess.token,cid:portalCid,cost:cc};
+    }
     if(cc>0){var ct=document.createElement('div');ct.style.cssText='position:fixed;top:72px;right:16px;z-index:999;background:rgba(0,0,0,.7);color:#fff;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600';ct.innerHTML='&#11042; -'+cc+' cr.';document.body.appendChild(ct);setTimeout(function(){ct.remove();},1500);}
   }
   var files=window._pchFiles||[];
@@ -6555,8 +6602,17 @@ async function sendChat(){
   else{sys=(chatTool.steps||[]).map(function(s,i){return '[ETAPE '+(i+1)+' - '+(s.name||s.type)+']:\n'+s.prompt;}).join('\n\n---\n\n');}
   var apiMsgs=chatH[chatTool.id].map(function(m){return {role:m.role,content:Array.isArray(m.content)?m.content:(m.content||'')};});
   try{
-    var res=await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:chatTool.model||'claude-sonnet-4-20250514',max_tokens:2000,system:sys||undefined,messages:apiMsgs})});
+    var _reqBody={model:chatTool.model||'claude-sonnet-4-20250514',max_tokens:2000,system:sys||undefined,messages:apiMsgs};
+    if(_portalAuth)_reqBody._portal=_portalAuth;
+    var res=await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_reqBody)});
+    if(res.status===402){typ.remove();showCreditExhausted();_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+    if(res.status===401){typ.remove();chatH[chatTool.id].push({role:'assistant',content:'Session expirée, veuillez vous reconnecter.'});renderChat();_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
     var data=await res.json();typ.remove();
+    // Server confirmed deduction — sync local display
+    if(_portalAuth&&_portalAuth.cost>0){
+      var _c=S.clients.find(function(x){return x.id===portalCid;});
+      if(_c){_c.credits=Math.max(0,(_c.credits||0)-_portalAuth.cost);updateCreditDisplay();if(_c.credits<=0)showCreditExhausted();else clearCreditExhausted();}
+    }
     var reply=(data&&data.content&&data.content[0])?data.content[0].text:'Erreur';
     chatH[chatTool.id].push({role:'assistant',content:reply});renderChat();
   }catch(e){typ.remove();chatH[chatTool.id].push({role:'assistant',content:'Erreur connexion.'});renderChat();}
@@ -6661,6 +6717,26 @@ function portalLoadUsers(cid, cb){
   })
   .catch(function(){if(!_done){clearTimeout(_t);_done=true;_fallback();}});
 }
+// ── Hachage PBKDF2 des mots de passe portail ─────────────────────────
+async function hashPassword(password){
+  var salt=crypto.getRandomValues(new Uint8Array(16));
+  var key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
+  var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:100000},key,256);
+  var toHex=function(arr){return Array.from(arr).map(function(b){return b.toString(16).padStart(2,'0')}).join('');};
+  return 'pbkdf2$'+toHex(salt)+'$100000$'+toHex(new Uint8Array(bits));
+}
+async function verifyPassword(password,stored){
+  if(!stored)return false;
+  if(!stored.startsWith('pbkdf2$'))return stored===password; // legacy plaintext → migration transparente
+  var parts=stored.split('$');
+  if(parts.length!==4)return false;
+  var salt=new Uint8Array(parts[1].match(/.{2}/g).map(function(h){return parseInt(h,16)}));
+  var key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
+  var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:parseInt(parts[2])},key,256);
+  var computed=Array.from(new Uint8Array(bits)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
+  return computed===parts[3];
+}
+
 function portalSendEmail(type,params,cb){
   var svc=Store.get('terr_ejs_svc'),key=Store.get('terr_ejs_key');
   var tpl=type==='reg'?Store.get('terr_ejs_tpl_reg'):Store.get('terr_ejs_tpl_rst');
@@ -8384,6 +8460,12 @@ async function authLogin(){
   var err=document.getElementById('auth-err');
   err.textContent='';err.className='auth-err';
   if(!user||!pass){err.textContent='Remplissez tous les champs.';err.className='auth-err on';return}
+  // Rate limiting admin : max 5 tentatives / 15 min
+  var _arl=null;try{_arl=JSON.parse(localStorage.getItem('admin_rl')||'null')}catch(e){}
+  if(_arl&&_arl.until&&_arl.until>Date.now()){
+    var _am=Math.ceil((_arl.until-Date.now())/60000);
+    err.textContent='Trop de tentatives. Réessayez dans '+_am+' min.';err.className='auth-err on';return;
+  }
   var admins=authGetAdmins();
   if(!admins.length){
     err.textContent='Chargement en cours, réessayez dans quelques secondes.';err.className='auth-err on';
@@ -8394,7 +8476,11 @@ async function authLogin(){
   var legacyHash=_authHashLegacy(user+':'+pass);
   var admin=admins.find(function(a){return a.username===user&&(a.hash===hash||a.hash===legacyHash)});
   if(!admin){
-    err.textContent='Identifiant ou mot de passe incorrect.';err.className='auth-err on';
+    var _ac=((_arl&&_arl.count)||0)+1;
+    var _al=_ac>=5?{count:_ac,until:Date.now()+15*60*1000}:{count:_ac};
+    try{localStorage.setItem('admin_rl',JSON.stringify(_al))}catch(e){}
+    err.textContent=_ac>=5?'Compte verrouillé 15 min. Trop de tentatives.':'Identifiant ou mot de passe incorrect.';
+    err.className='auth-err on';
     var box=document.querySelector('.auth-box');
     box.style.transform='translateX(-8px)';
     setTimeout(function(){box.style.transform='translateX(8px)'},80);
@@ -8402,6 +8488,8 @@ async function authLogin(){
     setTimeout(function(){box.style.transform='none'},240);
     return;
   }
+  // Succès — réinitialiser le compteur
+  try{localStorage.removeItem('admin_rl')}catch(e){}
   // Migration transparente : si hash legacy détecté → upgrade vers SHA-256
   if(admin.hash===legacyHash&&admin.hash!==hash){
     admin.hash=hash;
