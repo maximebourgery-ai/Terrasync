@@ -1031,41 +1031,12 @@ function toast(msg,ok){
   setTimeout(function(){t.classList.remove('show')},2800);
 }
 
-// PERSIST & RESTORE using div data attribute (safe for outerHTML export)
 function persist(){
-  var data={clients:S.clients,tools:S.tools.map(function(t){var r=Object.assign({},t);delete r.raw;return r}),users:S.users};
-  Store.set('terr1',data);
-  var el=$('terr-data');
-  if(el){try{var json=JSON.stringify(data);var b64=btoa(unescape(encodeURIComponent(json)));el.setAttribute('data-v',b64);}catch(e){}}
-  // Bake bin ID too so deployed HTML includes it
-  var binId=Store.get('terr_jb_bin');
-  if(el&&binId)el.setAttribute('data-b',binId);
-  swPushData(); // lit S au moment du save réel
+  swPushData(); // Supabase est la seule source de vérité — pas de localStorage
 }
 
 function restore(){
-  // Priority 1: localStorage
-  var ls=Store.get('terr1');
-  if(ls&&ls.clients&&ls.clients.length>0){
-    S.clients=ls.clients||[];S.tools=ls.tools||[];S.users=ls.users||[];
-    return;
-  }
-  // Priority 2: baked data-v attribute
-  var el=$('terr-data');
-  if(el){
-    var b64=el.getAttribute('data-v');
-    if(b64&&b64.length>4){
-      try{
-        var json=decodeURIComponent(escape(atob(b64)));
-        var data=JSON.parse(json);
-        if(data&&data.clients&&data.clients.length>0){
-          S.clients=data.clients||[];S.tools=data.tools||[];S.users=data.users||[];
-          Store.set('terr1',data);
-          return;
-        }
-      }catch(e){}
-    }
-  }
+  // Pas de localStorage — Supabase charge tout via jbPull()
   S.clients=[];S.tools=[];S.users=[];
 }
 
@@ -2540,7 +2511,6 @@ function portalShowConnecting(cid){
     if(d&&d.error)throw new Error(d.error);
     if(d&&d.clients&&d.clients.length>0){
       S.clients=d.clients;S.tools=d.tools||[];S.users=d.users||[];
-      Store.set('terr1',d);
       var c=S.clients.find(function(x){return x.id===cid});
       if(c){
         // Data loaded — continue portal init
@@ -3858,12 +3828,14 @@ function restoreToolVersion(vid,tid){
 // SUPABASE WORKSPACE SYNC — partagé entre tous les admins/navigateurs
 // ================================================================
 var _sbWsId       = 'main';
+var _sbWsSyncing  = false;
+var _sbWsDebounce = null;
+var _sbRealtime   = null;
+var _toolHtmlCache = {};
 
 // jbFetch/jbBin conservés pour les fichiers portail (JSONBin)
 function jbBin(){var cached=Store.get('terr_jb_bin');if(cached)return cached;var el=document.getElementById('terr-data');var baked=el?el.getAttribute('data-b'):'';if(baked&&baked.length>8){Store.set('terr_jb_bin',baked);return baked;}return '';}
 function jbFetch(method,path,payload,extraHeaders){var body={_jb:true,method:method,path:path};if(payload)body.payload=payload;if(extraHeaders)body.headers=extraHeaders;return fetch('/.netlify/functions/anthropic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
-var _sbWsSyncing  = false;
-var _sbWsDebounce = null;
 
 // Lit S au moment du save réel pour éviter les closures périmées
 function swPushData(_unused, immediate){
@@ -3902,7 +3874,6 @@ function jbPull(cb){
     if(_done)return;clearTimeout(_t);_done=true;
     if(!rows||rows.error){cb&&cb(false);return;}
     if(!Array.isArray(rows)||rows.length===0){
-      // Premier lancement — créer workspace vide
       var empty={clients:[],tools:[],users:[]};
       sbFetch('POST','/rest/v1/workspace',{id:_sbWsId,data:empty,updated_at:new Date().toISOString()})
       .then(function(){S.clients=[];S.tools=[];S.users=[];jbSetStatus('ok','Espace créé ✓');cb&&cb(true);})
@@ -3911,7 +3882,8 @@ function jbPull(cb){
     }
     var d=rows[0].data||{};
     S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];
-    Store.set('terr1',d);
+    // Restaurer htmlContent depuis cache mémoire
+    S.tools.forEach(function(t){if(_toolHtmlCache[t.id])t.htmlContent=_toolHtmlCache[t.id];});
     jbSetStatus('ok','Sync ✓ '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     cb&&cb(true);
   })
@@ -3929,17 +3901,73 @@ function jbSetStatus(type,msg){
   if(st)st.textContent=msg;
 }
 
+function sbStartRealtime(){
+  var sbUrl=Store.get('terr_sb_url')||'';
+  var sbAnon=Store.get('terr_sb_anon')||'';
+  if(!sbUrl||!sbAnon)return;
+  var wsUrl=sbUrl.replace(/^https?/,'wss')+'/realtime/v1/websocket?apikey='+sbAnon;
+  if(_sbRealtime){try{_sbRealtime.close();}catch(e){}_sbRealtime=null;}
+  try{
+    var ws=new WebSocket(wsUrl);
+    _sbRealtime=ws;
+    var _ping;
+    ws.onopen=function(){
+      ws.send(JSON.stringify({
+        topic:'realtime:public:workspace:id=eq.'+_sbWsId,
+        event:'phx_join',
+        payload:{config:{postgres_changes:[{event:'UPDATE',schema:'public',table:'workspace',filter:'id=eq.'+_sbWsId}]}},
+        ref:'1'
+      }));
+      _ping=setInterval(function(){
+        if(ws.readyState===1)ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:'hb'}));
+      },25000);
+    };
+    ws.onmessage=function(ev){
+      try{
+        var msg=JSON.parse(ev.data);
+        var rec=msg.payload&&msg.payload.data&&msg.payload.data.record;
+        if(rec&&rec.data){
+          var d=typeof rec.data==='string'?JSON.parse(rec.data):rec.data;
+          S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];
+          S.tools.forEach(function(t){if(_toolHtmlCache[t.id])t.htmlContent=_toolHtmlCache[t.id];});
+          jbSetStatus('ok','● Live');
+          renderSb();
+          if(activeC&&S.clients.find(function(x){return x.id===activeC;}))renderDetail();
+          renderKanban();
+        }
+      }catch(ex){}
+    };
+    ws.onerror=function(){clearInterval(_ping);_sbRealtime=null;};
+    ws.onclose=function(){clearInterval(_ping);_sbRealtime=null;setTimeout(sbStartRealtime,5000);};
+    if(!document._sbVisHandler){
+      document._sbVisHandler=function(){
+        if(document.visibilityState==='visible'&&!_sbRealtime){
+          sbStartRealtime();
+          jbPull(function(ok){if(ok){renderSb();if(activeC)renderDetail();renderKanban();}});
+        }
+      };
+      document.addEventListener('visibilitychange',document._sbVisHandler);
+    }
+  }catch(ex){_sbRealtime=null;}
+}
+
 function jbInit(){
   jbPull(function(ok){
-    if(ok){jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();}
-    else{
-      jbSetStatus('err','Sync cloud échoué — données locales préservées (retry dans 30s)');
-      setTimeout(function(){jbPull(function(ok2){if(ok2){jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();}else{jbSetStatus('err','Cloud inaccessible — données locales actives');}});},30000);
+    if(ok){
+      jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();
+      sbStartRealtime();
+    } else {
+      jbSetStatus('err','Cloud inaccessible — retry dans 30s');
+      setTimeout(function(){jbPull(function(ok2){
+        if(ok2){jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();sbStartRealtime();}
+        else{jbSetStatus('err','Cloud inaccessible');}
+      });},30000);
     }
   });
 }
 
 function setupJSONBin(){
+  if(_sbRealtime){try{_sbRealtime.close();}catch(e){}_sbRealtime=null;}
   jbInit();
   var st=$('jb-setup-status');
   if(st)st.innerHTML='<span style="color:#f59e0b">Reconnexion...</span>';
