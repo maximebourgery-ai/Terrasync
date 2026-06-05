@@ -3548,10 +3548,10 @@ function _setToolCreditCost(ck, val){
 var _fsChat={history:[],files:[],loading:false};
 
 function openFileSearchChat(){
+  // Éviter double-ouverture (double-clic = double déduction de 8 crédits)
+  if(document.getElementById('ov-filesearch'))return;
   // Déduire 8 crédits à l'ouverture d'une session de recherche IA
   if(portalCid&&!deductCredits(portalCid,'ai_search'))return;
-  var ex=document.getElementById('ov-filesearch');
-  if(ex)ex.remove();
   var c=S.clients.find(function(x){return x.id===portalCid;});
   var col=(c&&c.color)||'#3a5a28';
   var ov=document.createElement('div');
@@ -4963,7 +4963,7 @@ function _doLoginCheck(e, p){
   }
   portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
   // Save session with 1h expiry
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}))}catch(e){}
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}))}catch(e){}
   showPortalApp();
 }
 
@@ -5078,7 +5078,7 @@ function applyForcedPasswordChange(){
   _notifyPasswordManager(u.email||u.name||'', p);
 
   // Save session so the next page reload restores access directly
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+30*60*1000}));}catch(e){}
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}));}catch(e){}
 
   // Nettoyer l'URL (supprimer ?reset= si présent)
   try{
@@ -6502,13 +6502,17 @@ function renderChat(){
   el.innerHTML=h.map(function(m){return '<div class="pm '+(m.role==='user'?'pm-u':'pm-a')+'">'+m.content+'</div>'}).join('');
   el.scrollTop=el.scrollHeight;
 }
+var _sendChatBusy=false;
 async function sendChat(){
+  if(_sendChatBusy)return;
+  _sendChatBusy=true;
+  var _sendBtn=$('pch-send');if(_sendBtn)_sendBtn.disabled=true;
   var inp=$('pch-inp');var text=inp.value.trim();
-  if((!text&&!(window._pchFiles&&window._pchFiles.length))||!chatTool)return;
+  if((!text&&!(window._pchFiles&&window._pchFiles.length))||!chatTool){_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
   if(portalCid&&chatTool){
     var m=chatTool.model||'';var tp=chatTool.type||'ai';
     var atype=tp==='masterprompt'?'masterprompt':m.includes('sonnet')?'ai_sonnet':'ai_haiku';
-    if(!deductCredits(portalCid,atype)){inp.value=text;return;}
+    if(!deductCredits(portalCid,atype)){inp.value=text;_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
     var cc=CREDIT_COSTS[atype]||0;
     if(cc>0){var ct=document.createElement('div');ct.style.cssText='position:fixed;top:72px;right:16px;z-index:999;background:rgba(0,0,0,.7);color:#fff;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600';ct.innerHTML='&#11042; -'+cc+' cr.';document.body.appendChild(ct);setTimeout(function(){ct.remove();},1500);}
   }
@@ -6539,6 +6543,7 @@ async function sendChat(){
     var reply=(data&&data.content&&data.content[0])?data.content[0].text:'Erreur';
     chatH[chatTool.id].push({role:'assistant',content:reply});renderChat();
   }catch(e){typ.remove();chatH[chatTool.id].push({role:'assistant',content:'Erreur connexion.'});renderChat();}
+  finally{_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;}
 }
 
 window._pchFiles=[];
@@ -6613,7 +6618,7 @@ function portalSaveUsers(cid, users){
   if(!users || !users.length) return;
   var rows = users.map(function(u){
     return {
-      id: u.id, cid: cid,
+      id: u.id, cid: cid, workspace_id: _sbWsId,
       name: u.name||'', email: u.email||'',
       pwd: u.pwd||'', status: u.status||'pending',
       tool_ids: u.toolIds||[], last: u.last||'',
@@ -6629,7 +6634,7 @@ function portalLoadUsers(cid, cb){
     cb&&cb(_portalUsersCache[cid]||[]);
   };
   var _t=setTimeout(function(){if(!_done){_done=true;_fallback();}},8000);
-  sbFetch('GET', '/rest/v1/portal_users?cid=eq.'+encodeURIComponent(cid))
+  sbFetch('GET', '/rest/v1/portal_users?cid=eq.'+encodeURIComponent(cid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId))
   .then(function(rows){
     if(_done)return;clearTimeout(_t);_done=true;
     if(!Array.isArray(rows)) rows=[];
