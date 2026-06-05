@@ -22,6 +22,9 @@ export async function onRequestPost({ request, env }) {
     if (!SB_URL) return json({ error: 'SUPABASE_URL manquant dans les variables Cloudflare Pages.' }, 503);
     if (!SB_KEY) return json({ error: 'SUPABASE_SERVICE_KEY manquant dans les variables Cloudflare Pages.' }, 503);
     const { method = 'GET', path, payload, headers: extra = {} } = body;
+    const ALLOWED_TABLES = ['workspace','tool_content','tool_versions','portal_files','portal_users','admin_accounts'];
+    const pathAllowed = typeof path === 'string' && ALLOWED_TABLES.some(t => path.startsWith('/rest/v1/' + t));
+    if (!pathAllowed) return json({ error: 'Chemin non autorisé.' }, 403);
     const headers = {
       'Content-Type': 'application/json',
       apikey: SB_KEY,

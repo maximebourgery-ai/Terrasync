@@ -2371,7 +2371,7 @@ function syncUserToPortal(u){
   var patch={tool_ids:u.toolIds||[],status:u.status};
   // PATCH par email+cid : cible l'enregistrement existant sans risque de doublon sur la PK
   sbFetch('PATCH',
-    '/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid),
+    '/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId),
     patch,{'Prefer':'return=minimal'}
   ).then(function(r){
     // Si aucun enregistrement trouvé (PATCH sur 0 lignes), créer l'entrée
@@ -2806,7 +2806,9 @@ function showResetLinks(cid){
     var row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--abdr)';
     var info=document.createElement('div');info.style.flex='1';
-    info.innerHTML='<div style="font-size:13px;font-weight:600">'+u.name+'</div><div style="font-size:10.5px;color:var(--am)">'+u.email+'</div>';
+    var _ni=document.createElement('div');_ni.style.cssText='font-size:13px;font-weight:600';_ni.textContent=u.name;
+    var _ei=document.createElement('div');_ei.style.cssText='font-size:10.5px;color:var(--am)';_ei.textContent=u.email;
+    info.appendChild(_ni);info.appendChild(_ei);
     var btnCopy=document.createElement('button');btnCopy.className='btn btn-g btn-xs';btnCopy.textContent='Copier lien';
     btnCopy.onclick=function(){copyText(url);btnCopy.textContent='Copie!';setTimeout(function(){btnCopy.textContent='Copier lien'},2000)};
     var btnForce=document.createElement('button');btnForce.className='btn btn-r btn-xs';btnForce.textContent='Forcer';
@@ -5370,7 +5372,7 @@ function _extractTextAsync(dataUrl, fname, callback){
 function jbPushFiles(cid, files) {
   var valid = files.filter(function(f){ return f.expiresAt > Date.now(); });
   if(!valid.length){
-    sbFetch('DELETE', '/rest/v1/portal_files?cid=eq.'+encodeURIComponent(cid)).catch(function(){});
+    sbFetch('DELETE', '/rest/v1/portal_files?cid=eq.'+encodeURIComponent(cid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId)).catch(function(){});
     return;
   }
   // UPSERT fichier par fichier (pas DELETE ALL → plus sûr)
@@ -5396,7 +5398,7 @@ function jbPushFiles(cid, files) {
     ).catch(function(){});
   });
   // Supprimer les fichiers expirés
-  sbFetch('DELETE', '/rest/v1/portal_files?cid=eq.'+encodeURIComponent(cid)+'&expires_at=lt.'+new Date().toISOString())
+  sbFetch('DELETE', '/rest/v1/portal_files?cid=eq.'+encodeURIComponent(cid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId)+'&expires_at=lt.'+new Date().toISOString())
     .catch(function(){});
 }
 
@@ -6925,9 +6927,11 @@ function swPushData(_unused, immediate) {
     };
     _sbSyncing = true;
     jbSetStatus('sync','Sync...');
-    sbFetch('PATCH', '/rest/v1/workspace?id=eq.'+_sbWsId,
+    var _syncPromise = sbFetch('PATCH', '/rest/v1/workspace?id=eq.'+_sbWsId,
       {data: clean, updated_at: new Date().toISOString()}
-    )
+    );
+    var _syncTimeout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 15000); });
+    Promise.race([_syncPromise, _syncTimeout])
     .then(function(d){
       _sbSyncing = false;
       var t = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -8398,7 +8402,7 @@ function authLogin(){
     return;
   }
   // Create session (8 hours)
-  var session={id:admin.id,username:admin.username,role:admin.role,exp:Date.now()+30*60*1000};
+  var session={id:admin.id,username:admin.username,role:admin.role,exp:Date.now()+8*60*60*1000};
   try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session))}catch(e){}
   // Animate success
   var btn=document.querySelector('#auth-login-form .auth-btn');

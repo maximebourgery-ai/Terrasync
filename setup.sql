@@ -65,6 +65,16 @@ ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN N
 CREATE INDEX IF NOT EXISTS portal_users_cid ON portal_users(workspace_id, cid);
 CREATE UNIQUE INDEX IF NOT EXISTS portal_users_email_cid ON portal_users(email, cid, workspace_id);
 
+CREATE TABLE IF NOT EXISTS admin_accounts (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin','super')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS admin_accounts_username ON admin_accounts(username);
+ALTER TABLE admin_accounts DISABLE ROW LEVEL SECURITY;
+
 ALTER TABLE workspace REPLICA IDENTITY FULL;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workspace; EXCEPTION WHEN others THEN NULL; END $$;
 
