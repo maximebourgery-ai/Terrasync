@@ -1,6 +1,4 @@
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+import { CORS, json } from './_shared.js';
 
 async function verifyPassword(password, stored) {
   if (!stored) return false;

@@ -1,10 +1,4 @@
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+import { CORS, json } from './_shared.js';
 
 async function sbGet(sbUrl, sbKey, path) {
   const r = await fetch(sbUrl + path, {
