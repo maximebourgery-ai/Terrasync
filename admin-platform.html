@@ -1470,8 +1470,8 @@ function renderCdBody(c,idx){
 function approveUser(uid){
   var u=S.users.find(function(x){return x.id===uid});if(!u)return;
   u.status='approved';
-  try{var k='terr_'+u.cid+'_u';var pu=JSON.parse(localStorage.getItem(k)||'[]');var pi=pu.findIndex(function(x){return x.id===uid});if(pi>-1){pu[pi].status='approved';}else{pu.push({id:u.id,name:u.name,email:u.email,pwd:u.pwd||'',status:'approved',toolIds:[]});}localStorage.setItem(k,JSON.stringify(pu));}catch(e){}
   persist();
+  syncUserToPortal(u);
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
 }
@@ -1596,7 +1596,18 @@ function _autoGrantNewTool(toolId,cid){
       if(!u.toolIds.includes(toolId)){u.toolIds.push(toolId);syncUserToPortal(u);}
     });
 }
-function syncUserToPortal(u){try{var k='terr_'+u.cid+'_u';var pu=JSON.parse(localStorage.getItem(k)||'[]');var i=pu.findIndex(function(x){return x.id===u.id});if(i>-1){pu[i]=Object.assign(pu[i],{status:u.status,toolIds:u.toolIds||[]});}else{pu.push({id:u.id,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,toolIds:u.toolIds||[]});}localStorage.setItem(k,JSON.stringify(pu));}catch(e){}}
+function syncUserToPortal(u){
+  // Upsert dans Supabase portal_users (source de vérité pour le portail)
+  sbFetch('GET','/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid)+'&select=id')
+  .then(function(rows){
+    var payload={email:u.email,cid:u.cid,name:u.name,status:u.status,tool_ids:u.toolIds||[],pwd:u.pwd||''};
+    if(rows&&rows.length>0){
+      sbFetch('PATCH','/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid),payload).catch(function(){});
+    } else {
+      sbFetch('POST','/rest/v1/portal_users',payload).catch(function(){});
+    }
+  }).catch(function(){});
+}
 
 function importCode(){
   var raw=$('import-code-val').value.trim();
@@ -3927,6 +3938,9 @@ function sbStartRealtime(){
         var msg=JSON.parse(ev.data);
         var rec=msg.payload&&msg.payload.data&&msg.payload.data.record;
         if(rec&&rec.data){
+          // Si un save local est en attente ou en cours, ignorer l'event Realtime :
+          // il reflète un état antérieur à notre modification non encore persistée.
+          if(_sbWsDebounce||_sbWsSyncing)return;
           var d=typeof rec.data==='string'?JSON.parse(rec.data):rec.data;
           S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];
           S.tools.forEach(function(t){if(_toolHtmlCache[t.id])t.htmlContent=_toolHtmlCache[t.id];});

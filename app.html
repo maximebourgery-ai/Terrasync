@@ -7126,22 +7126,10 @@ function sbStartRealtime() {
         var msg = JSON.parse(ev.data);
         var rec = msg.payload&&msg.payload.data&&msg.payload.data.record;
         if(rec && rec.data) {
+          // Si un save local est en attente, ignorer pour éviter d'écraser des changements non persistés
+          if(_sbDebounce || _sbSyncing) return;
           var d = typeof rec.data==='string' ? JSON.parse(rec.data) : rec.data;
-          // Fusion intelligente: ne pas écraser les crédits locaux si un sync est en attente
-          var _incoming = d.clients||[];
-          var _existing = S.clients||[];
-          if(_sbDebounce || _sbSyncing){
-            // Merge: garder les crédits locaux (plus récents), prendre le reste du serveur
-            _incoming = _incoming.map(function(inc){
-              var loc = _existing.find(function(x){return x.id===inc.id;});
-              if(loc && loc.credits !== inc.credits){
-                // Garder la valeur locale (déduction non encore sauvée)
-                inc.credits = loc.credits;
-              }
-              return inc;
-            });
-          }
-          S.clients=_incoming;S.tools=d.tools||[];S.users=d.users||[];S.compta=d.compta||[];
+          S.clients=d.clients||[];S.tools=d.tools||[];S.users=d.users||[];S.compta=d.compta||[];
           // Mettre à jour les prix en temps réel
           if(d.creditCosts&&Object.keys(d.creditCosts).length){
             S.creditCosts=d.creditCosts;
