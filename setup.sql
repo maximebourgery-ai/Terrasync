@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS portal_users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS reset_token TEXT DEFAULT NULL;
+ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS reset_token_exp TIMESTAMPTZ DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS portal_users_reset_token ON portal_users(reset_token) WHERE reset_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS portal_users_cid ON portal_users(workspace_id, cid);
 CREATE UNIQUE INDEX IF NOT EXISTS portal_users_email_cid ON portal_users(email, cid, workspace_id);
 

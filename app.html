@@ -4716,13 +4716,6 @@ function _portalInitAfterLoad(cid,c){
     ['pfl','pfr','pff'].forEach(function(id){var el=$(id);if(el)el.style.display='none'});
     ['ptl','ptr','ptf'].forEach(function(id){var el=$(id);if(el)el.classList.remove('on')});
     if($('pfrs'))$('pfrs').style.display='block';
-    // Pré-remplir le champ username caché pour que le navigateur sache quel compte change
-    try{
-      var _rtData=JSON.parse(atob(decodeURIComponent(resetToken)));
-      var _rtUser=(portalGetUsers(_rtData.cid||cid)||[]).find(function(x){return x.id===(_rtData.uid||_rtData.id);});
-      var _unField=$('p-np-username');
-      if(_unField&&_rtUser)_unField.value=_rtUser.email||_rtUser.name||'';
-    }catch(e){}
     return;
   }
   if(_sess&&_sess.exp>Date.now()){
@@ -5179,19 +5172,25 @@ function doForgot(){
   var users=portalGetUsers(portalCid);
   var u=users.find(function(x){return x.email===e});
   if(!u){err.textContent='Aucun compte avec cet email.';err.className='p-err on';return}
+  // Générer un token UUID opaque (non devinable, non forgeable)
+  var token=(typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID()
+    :(Math.random().toString(36).slice(2)+Date.now().toString(36)+Math.random().toString(36).slice(2));
+  var expIso=new Date(Date.now()+86400000).toISOString();
+  // Sauvegarder le token en DB — la vérification se fait côté Supabase dans doNewPwd
+  sbFetch('PATCH',
+    '/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId),
+    {reset_token:token,reset_token_exp:expIso},
+    {'Prefer':'return=minimal'}
+  ).catch(function(){});
   var base=getSiteUrl();
-  var token=btoa(JSON.stringify({uid:u.id,cid:portalCid,email:e,exp:Date.now()+86400000}));
-  var resetUrl=base?base+'?portal='+portalCid+'&reset='+token:'';
-  // Disable button
+  var resetUrl=base?base+'?portal='+portalCid+'&reset='+encodeURIComponent(token):'';
   var btn=$('p-btn-forgot');if(btn){btn.textContent='Envoi...';btn.disabled=true;}
-  // Send via EmailJS with correct template variables
   portalSendEmail('reset',{to_name:u.name,to_email:e,link:resetUrl},function(ok){
     if(btn){btn.textContent='ENVOYER →';btn.disabled=false;}
     if(ok){
       info.innerHTML='✅ Email envoyé à <strong>'+e+'</strong>. Vérifiez vos spams.';
       info.className='p-info on';
     } else {
-      // Fallback: show the link manually
       info.innerHTML='Email non envoyé. Contactez votre admin avec ce lien:<br><textarea style="width:100%;margin-top:8px;padding:6px;border-radius:5px;border:1px solid #bfdbfe;font-size:9px;font-family:monospace;background:#dbeafe;color:#1e3a8a;resize:none;height:44px;word-break:break-all" readonly onclick="this.select()">'+resetUrl+'</textarea>';
       info.className='p-info on';
     }
@@ -5201,30 +5200,46 @@ function doForgot(){
 function doNewPwd(){
   var p=$('p-np').value;var p2=$('p-np2').value;
   var err=$('p-nperr');err.className='p-err';
-  if(!p||p.length<6){err.textContent='Minimum 6 caracteres.';err.className='p-err on';return}
+  if(!p||p.length<8){err.textContent='Minimum 8 caractères.';err.className='p-err on';return}
   if(p!==p2){err.textContent='Les mots de passe ne correspondent pas.';err.className='p-err on';return}
   if(!resetToken){err.textContent='Token invalide.';err.className='p-err on';return}
-  try{
-    var data=JSON.parse(atob(decodeURIComponent(resetToken)));
-    if(data.exp<Date.now()){err.textContent='Lien expire. Faites une nouvelle demande.';err.className='p-err on';return}
-    var targetCid=data.cid||portalCid;
-    var targetUid=data.uid||data.id;
+  err.textContent='Vérification…';err.className='p-err on';
+  var now=new Date().toISOString();
+  // Vérifier le token directement en DB — empêche tout token forgé
+  sbFetch('GET',
+    '/rest/v1/portal_users?reset_token=eq.'+encodeURIComponent(resetToken)
+    +'&reset_token_exp=gt.'+now
+    +'&workspace_id=eq.'+encodeURIComponent(_sbWsId)
+    +'&select=id,cid,email,name&limit=1'
+  ).then(function(rows){
+    if(!rows||!Array.isArray(rows)||!rows.length){
+      err.textContent='Lien invalide ou expiré. Faites une nouvelle demande.';err.className='p-err on';return;
+    }
+    var r=rows[0];
+    var targetCid=r.cid||portalCid;
     var users=portalGetUsers(targetCid);
-    var u=users.find(function(x){return x.id===targetUid});
-    if(!u){err.textContent='Utilisateur introuvable.';err.className='p-err on';return}
-    u.pwd=p;portalSaveUsers(data.cid,users);
-    var au=S.users.find(function(x){return x.id===data.uid});if(au){au.pwd=p;persist()}
-    // Signaler le nouveau mot de passe au gestionnaire du navigateur
-    _notifyPasswordManager(u.email||u.name||'', p);
+    var u=users.find(function(x){return x.id===r.id});
+    if(u){u.pwd=p;portalSaveUsers(targetCid,users);}
+    var au=S.users.find(function(x){return x.id===r.id});if(au){au.pwd=p;persist();}
+    // Invalider le token en DB après usage
+    sbFetch('PATCH',
+      '/rest/v1/portal_users?id=eq.'+encodeURIComponent(r.id)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId),
+      {reset_token:null,reset_token_exp:null},
+      {'Prefer':'return=minimal'}
+    ).catch(function(){});
+    _notifyPasswordManager(r.email||r.name||'',p);
     resetToken=null;
-    // Nettoyer le token de l'URL pour éviter que le formulaire réapparaisse au rechargement
     try{
-      var _cleanUrl=window.location.pathname+'?portal='+(data.cid||portalCid||'');
+      var _cleanUrl=window.location.pathname+'?portal='+(r.cid||portalCid||'');
       history.replaceState(null,'',_cleanUrl);
     }catch(e){}
     $('pfrs').style.display='none';showPortalTab('l');
-    $('p-lerr').textContent='Mot de passe réinitialisé ! Connectez-vous.';$('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';$('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
-  }catch(ex){err.textContent='Token invalide.';err.className='p-err on'}
+    $('p-lerr').textContent='Mot de passe réinitialisé ! Connectez-vous.';
+    $('p-lerr').className='p-err on';$('p-lerr').style.background='#f0fdf4';
+    $('p-lerr').style.borderColor='#bbf7d0';$('p-lerr').style.color='#166534';
+  }).catch(function(){
+    err.textContent='Erreur réseau. Réessayez.';err.className='p-err on';
+  });
 }
 
 function showPortalApp(){
@@ -6590,12 +6605,8 @@ function parseUrl(){
   if(portal){
     loadPortal(portal);
     if(reset){
-      try{
-        var d=JSON.parse(atob(decodeURIComponent(reset)));
-        if(d.exp>Date.now()){
-          resetToken=reset;
-        }
-      }catch(ex){}
+      // Stocker le token brut (UUID opaque) — la vérification se fait en DB dans doNewPwd
+      resetToken=decodeURIComponent(reset);
     }
   } else {
     showScr('admin');
@@ -7893,10 +7904,10 @@ function buildPortalHTML(c){
     html += '<script>';
     html += 'var TD=' + toolsJson + ';';
     // Always use stored values or hardcoded defaults
-    var _ejsSvc=Store.get('terr_ejs_svc')||'service_divh35q';
-    var _ejsKey=Store.get('terr_ejs_key')||'nXgRFNwIGGTDQngAV';
-    var _ejsReg=Store.get('terr_ejs_tpl_reg')||'template_i2xb98i';
-    var _ejsRst=Store.get('terr_ejs_tpl_rst')||'template_go6gpfb';
+    var _ejsSvc=Store.get('terr_ejs_svc')||'';
+    var _ejsKey=Store.get('terr_ejs_key')||'';
+    var _ejsReg=Store.get('terr_ejs_tpl_reg')||'';
+    var _ejsRst=Store.get('terr_ejs_tpl_rst')||'';
     html += 'var EJS_SVC="' + _ejsSvc + '";';
     html += 'var EJS_KEY="' + _ejsKey + '";';
     html += 'var EJS_TPL_REG="' + _ejsReg + '";';
@@ -8311,23 +8322,16 @@ window.addEventListener('storage',function(e){
 var AUTH_KEY = 'terr_admin_auth';
 var AUTH_SESSION_KEY = 'terr_admin_session';
 
-// Default admin credentials - hashed for security
-// Default: admin / Terrassement2024!
-// Users can change via Settings
 function authHash(str){
   var h=0;
   for(var i=0;i<str.length;i++){h=Math.imul(31,h)+str.charCodeAt(i)|0}
   return Math.abs(h).toString(36);
 }
 
-// EMAILJS DEFAULT CONFIG — pre-configured for all deployments
+// EmailJS : initialiser avec la clé configurée dans Paramètres > Email
 (function(){
-  if(!Store.get('terr_ejs_svc'))Store.set('terr_ejs_svc','service_divh35q');
-  if(!Store.get('terr_ejs_key'))Store.set('terr_ejs_key','nXgRFNwIGGTDQngAV');
-  if(!Store.get('terr_ejs_tpl_reg'))Store.set('terr_ejs_tpl_reg','template_i2xb98i');
-  if(!Store.get('terr_ejs_tpl_rst'))Store.set('terr_ejs_tpl_rst','template_go6gpfb');
-  // Init EmailJS immediately
-  if(window.emailjs)try{emailjs.init({publicKey:'nXgRFNwIGGTDQngAV'})}catch(e){}
+  var key=Store.get('terr_ejs_key');
+  if(key&&window.emailjs)try{emailjs.init({publicKey:key})}catch(e){}
 })();
 
 function authGetAdmins(){
