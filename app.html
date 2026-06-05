@@ -4723,9 +4723,12 @@ function _portalInitAfterLoad(cid,c){
     if($('pfrs'))$('pfrs').style.display='block';
     return;
   }
-  if(_sess&&_sess.exp>Date.now()){
-    var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
-    if(_u){
+  if(_sess&&_sess.exp>Date.now()&&_sess.uid&&_sess.token){
+    // Verify session token against DB to prevent forgery
+    sbFetch('GET','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_sess.uid)+'&session_token=eq.'+encodeURIComponent(_sess.token)+'&status=eq.approved&select=id&limit=1').then(function(rows){
+      if(!rows||!rows.length){showPortalTab('l');return;}
+      var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
+      if(!_u){showPortalTab('l');return;}
       portalMe=_u;
 
       // IMPORTANT : Ajouter ?portal= dans l'URL pour que F5 fonctionne
@@ -4751,8 +4754,8 @@ function _portalInitAfterLoad(cid,c){
         if(getClientCredits(portalCid)<=0)showCreditExhausted();
         else clearCreditExhausted();
       },100);
-      return;
-    }
+    }).catch(function(){showPortalTab('l');});
+    return;
   }
   showPortalTab('l');
 }
@@ -4909,8 +4912,12 @@ function showPortalTab(t){
 // Tab onclick handled inline in HTML (ptl/ptr/ptf buttons)
 // showPortalTab('l') called from loadPortal on init
 $('papp-out').onclick=function(){
-  portalMe=null;
   if(isAdminPreview){exitPreview();return}
+  var _oldSess=null;try{_oldSess=JSON.parse(localStorage.getItem('ps_'+portalCid)||'null')}catch(e){}
+  if(_oldSess&&_oldSess.uid){
+    sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_oldSess.uid),{session_token:null},{Prefer:'return=minimal'}).catch(function(){});
+  }
+  portalMe=null;
   try{if(portalCid)localStorage.removeItem('ps_'+portalCid)}catch(e){}
   $('papp').classList.remove('on');
   $('p-login').style.display='flex';$('p-login').classList.add('on');
@@ -4987,7 +4994,9 @@ async function _doLoginCheck(e, p){
     showForcedPasswordChange();return;
   }
   portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}))}catch(e){}
+  var _tok=crypto.randomUUID();
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,token:_tok,exp:Date.now()+2*60*60*1000}))}catch(e){}
+  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{session_token:_tok},{Prefer:'return=minimal'}).catch(function(){});
   showPortalApp();
 }
 
@@ -5098,8 +5107,10 @@ function applyForcedPasswordChange(){
   // Signaler le nouveau mot de passe au gestionnaire du navigateur
   _notifyPasswordManager(u.email||u.name||'', p);
 
-  // Save session so the next page reload restores access directly
-  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,exp:Date.now()+2*60*60*1000}));}catch(e){}
+  // Save session with token so the next page reload restores access directly
+  var _ftok=crypto.randomUUID();
+  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{session_token:_ftok},{Prefer:'return=minimal'}).catch(function(){});
+  try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:u.id,token:_ftok,exp:Date.now()+2*60*60*1000}));}catch(e){}
 
   // Nettoyer l'URL (supprimer ?reset= si présent)
   try{
