@@ -25,8 +25,11 @@ export async function onRequestPost({ request, env }) {
       return json({ success: false, message: 'Aucun compte trouvé avec cet email' }, 404);
     }
 
-    // Vérification mot de passe si fourni
-    if (password && rows[0].pwd && rows[0].pwd !== password) {
+    // Vérification mot de passe
+    if (!rows[0].pwd) {
+      return json({ success: false, message: 'Compte non configuré, contactez votre administrateur' }, 403);
+    }
+    if (!password || rows[0].pwd !== password) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
     }
 
