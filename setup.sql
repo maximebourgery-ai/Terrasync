@@ -81,8 +81,18 @@ ALTER TABLE admin_accounts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace REPLICA IDENTITY FULL;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workspace; EXCEPTION WHEN others THEN NULL; END $$;
 
-ALTER TABLE workspace     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE tool_content  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE tool_versions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE portal_files  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE portal_users  DISABLE ROW LEVEL SECURITY;
+-- Row Level Security : bloquer l'accès direct via la clé anon
+-- Le service_role (proxy Cloudflare via anthropic.js) bypass la RLS automatiquement
+ALTER TABLE workspace      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_content   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_versions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portal_files   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portal_users   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_accounts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "deny_anon_workspace"      ON workspace      AS RESTRICTIVE FOR ALL TO anon USING (false);
+CREATE POLICY "deny_anon_tool_content"   ON tool_content   AS RESTRICTIVE FOR ALL TO anon USING (false);
+CREATE POLICY "deny_anon_tool_versions"  ON tool_versions  AS RESTRICTIVE FOR ALL TO anon USING (false);
+CREATE POLICY "deny_anon_portal_files"   ON portal_files   AS RESTRICTIVE FOR ALL TO anon USING (false);
+CREATE POLICY "deny_anon_portal_users"   ON portal_users   AS RESTRICTIVE FOR ALL TO anon USING (false);
+CREATE POLICY "deny_anon_admin_accounts" ON admin_accounts AS RESTRICTIVE FOR ALL TO anon USING (false);
