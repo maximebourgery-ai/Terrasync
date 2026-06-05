@@ -2405,6 +2405,7 @@ function importCode(){
   try{
     var data=JSON.parse(atob(raw));
     if(!data.id||!data.email||!data.name){toast('Code invalide',false);return}
+    if(!data.cid||!S.clients.find(function(c){return c.id===data.cid;})){toast('Client inconnu — code invalide',false);return}
     if(S.users.find(function(u){return u.id===data.id})){toast('Compte deja importe',false);return}
     S.users.push({id:data.id,name:data.name,email:data.email,pwd:data.pwd||'',last:data.last||'?',cid:data.cid,status:'pending',toolIds:[]});
     persist();hideOv('ov-import');$('import-code-val').value='';
@@ -2819,8 +2820,8 @@ function showResetLinks(cid){
   showOv('ov-reset');
 }
 function forceReset(uid){
-  var pwd=prompt('Nouveau mot de passe :');
-  if(!pwd||pwd.length<6){toast('Trop court',false);return}
+  var pwd=prompt('Nouveau mot de passe (8 caractères minimum) :');
+  if(!pwd||pwd.length<8){toast('Minimum 8 caractères',false);return}
   var u=S.users.find(function(x){return x.id===uid});if(u){u.pwd=pwd;syncUserToPortal(u);persist();toast('Mot de passe reinitialise')}
 }
 
@@ -5436,7 +5437,7 @@ function portalAddFile(cid,file){
   console.log('[ADD_FILE] portalAddFile appelé, cid:', cid, 'file:', file.name);
   if(cid&&portalMe){
     console.log('[ADD_FILE] Décompte crédit save_file...');
-    deductCredits(cid,'save_file');
+    if(!deductCredits(cid,'save_file'))return;
   }
   var files=portalGetFiles(cid);
   console.log('[ADD_FILE] Fichiers actuels:', files.length);
@@ -8333,8 +8334,8 @@ function authGetAdmins(){
   // Priorité : données en cache local (synchronisées depuis Supabase au chargement)
   var saved=Store.get(AUTH_KEY);
   if(saved&&saved.admins&&saved.admins.length)return saved.admins;
-  // Fallback hardcodé
-  return [{id:'admin1',username:'admin',hash:authHash('admin:Terrassement2024!'),role:'super'}];
+  // Aucun cache local : Supabase n'a pas encore chargé — bloquer l'accès
+  return [];
 }
 
 function authSaveAdmins(admins){
@@ -8355,17 +8356,8 @@ function _loadAdminsFromSupabase(){
   sbFetch('GET','/rest/v1/admin_accounts?select=id,username,hash,role')
   .then(function(rows){
     if(!rows||!Array.isArray(rows)||!rows.length)return;
-    // Fusionner : garder le fallback hardcodé + ceux de Supabase
-    var base=[{id:'admin1',username:'admin',hash:authHash('admin:Terrassement2024!'),role:'super'}];
-    var merged=base.slice();
-    rows.forEach(function(r){
-      if(!merged.find(function(a){return a.username===r.username;})){
-        merged.push({id:r.id,username:r.username,hash:r.hash,role:r.role||'admin'});
-      } else if(r.username!=='admin'){
-        // Mettre à jour le hash si changé dans Supabase
-        var existing=merged.find(function(a){return a.username===r.username;});
-        if(existing) existing.hash=r.hash;
-      }
+    var merged=rows.map(function(r){
+      return {id:r.id,username:r.username,hash:r.hash,role:r.role||'admin'};
     });
     authSaveAdmins(merged);
     var el=document.getElementById('admin-list-container');
@@ -8394,6 +8386,12 @@ function authLogin(){
   err.textContent='';err.className='auth-err';
   if(!user||!pass){err.textContent='Remplissez tous les champs.';err.className='auth-err on';return}
   var admins=authGetAdmins();
+  if(!admins.length){
+    err.textContent='Chargement en cours, réessayez dans quelques secondes.';err.className='auth-err on';
+    // Déclencher le rechargement depuis Supabase
+    _loadAdminsFromSupabase();
+    return;
+  }
   var hash=authHash(user+':'+pass);
   var admin=admins.find(function(a){return a.username===user&&a.hash===hash});
   if(!admin){
