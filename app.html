@@ -6565,11 +6565,19 @@ async function sendChat(){
   var _sendBtn=$('pch-send');if(_sendBtn)_sendBtn.disabled=true;
   var inp=$('pch-inp');var text=inp.value.trim();
   if((!text&&!(window._pchFiles&&window._pchFiles.length))||!chatTool){_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+  var _portalAuth=null;
   if(portalCid&&chatTool){
     var m=chatTool.model||'';var tp=chatTool.type||'ai';
     var atype=tp==='masterprompt'?'masterprompt':m.includes('sonnet')?'ai_sonnet':'ai_haiku';
-    if(!deductCredits(portalCid,atype)){inp.value=text;_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
     var cc=CREDIT_COSTS[atype]||0;
+    // Client-side guard: fast feedback before server confirms
+    var _curCr=getClientCredits(portalCid);
+    if(cc>0&&_curCr<cc){showCreditAlert(cc,_curCr);inp.value=text;_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+    // Build portal auth payload for server-side credit deduction
+    var _sess=null;try{_sess=JSON.parse(localStorage.getItem('ps_'+portalCid)||'null')}catch(e){}
+    if(_sess&&_sess.token){
+      _portalAuth={uid:portalMe.id,token:_sess.token,cid:portalCid,cost:cc};
+    }
     if(cc>0){var ct=document.createElement('div');ct.style.cssText='position:fixed;top:72px;right:16px;z-index:999;background:rgba(0,0,0,.7);color:#fff;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600';ct.innerHTML='&#11042; -'+cc+' cr.';document.body.appendChild(ct);setTimeout(function(){ct.remove();},1500);}
   }
   var files=window._pchFiles||[];
@@ -6594,8 +6602,17 @@ async function sendChat(){
   else{sys=(chatTool.steps||[]).map(function(s,i){return '[ETAPE '+(i+1)+' - '+(s.name||s.type)+']:\n'+s.prompt;}).join('\n\n---\n\n');}
   var apiMsgs=chatH[chatTool.id].map(function(m){return {role:m.role,content:Array.isArray(m.content)?m.content:(m.content||'')};});
   try{
-    var res=await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:chatTool.model||'claude-sonnet-4-20250514',max_tokens:2000,system:sys||undefined,messages:apiMsgs})});
+    var _reqBody={model:chatTool.model||'claude-sonnet-4-20250514',max_tokens:2000,system:sys||undefined,messages:apiMsgs};
+    if(_portalAuth)_reqBody._portal=_portalAuth;
+    var res=await fetch(PROXY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_reqBody)});
+    if(res.status===402){typ.remove();showCreditExhausted();_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
+    if(res.status===401){typ.remove();chatH[chatTool.id].push({role:'assistant',content:'Session expirée, veuillez vous reconnecter.'});renderChat();_sendChatBusy=false;if(_sendBtn)_sendBtn.disabled=false;return;}
     var data=await res.json();typ.remove();
+    // Server confirmed deduction — sync local display
+    if(_portalAuth&&_portalAuth.cost>0){
+      var _c=S.clients.find(function(x){return x.id===portalCid;});
+      if(_c){_c.credits=Math.max(0,(_c.credits||0)-_portalAuth.cost);updateCreditDisplay();if(_c.credits<=0)showCreditExhausted();else clearCreditExhausted();}
+    }
     var reply=(data&&data.content&&data.content[0])?data.content[0].text:'Erreur';
     chatH[chatTool.id].push({role:'assistant',content:reply});renderChat();
   }catch(e){typ.remove();chatH[chatTool.id].push({role:'assistant',content:'Erreur connexion.'});renderChat();}
