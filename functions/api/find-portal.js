@@ -2,6 +2,17 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
+async function verifyPassword(password, stored) {
+  if (!stored) return false;
+  if (!stored.startsWith('pbkdf2$')) return stored === password; // legacy plaintext → migration
+  const [, saltHex, iter, hashHex] = stored.split('$');
+  const salt = new Uint8Array(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: parseInt(iter) }, key, 256);
+  const computed = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return computed === hashHex;
+}
+
 export async function onRequestOptions() {
   return new Response('', { status: 200, headers: CORS });
 }
@@ -25,11 +36,15 @@ export async function onRequestPost({ request, env }) {
       return json({ success: false, message: 'Aucun compte trouvé avec cet email' }, 404);
     }
 
-    // Vérification mot de passe
+    // Vérification mot de passe (supporte PBKDF2 et legacy plaintext)
     if (!rows[0].pwd) {
       return json({ success: false, message: 'Compte non configuré, contactez votre administrateur' }, 403);
     }
-    if (!password || rows[0].pwd !== password) {
+    if (!password) {
+      return json({ success: false, message: 'Mot de passe requis' }, 401);
+    }
+    const pwdOk = await verifyPassword(password, rows[0].pwd);
+    if (!pwdOk) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
     }
 
