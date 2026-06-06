@@ -6,7 +6,6 @@ Allow: /
 
 # Pages à ne pas indexer (portails clients privés)
 Disallow: /app.html
-Disallow: /tool.html
 Disallow: /*?portal=*
 
 # Sitemap

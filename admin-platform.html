@@ -843,18 +843,18 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
           </div>
           <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:8px;line-height:1.6">Copiez l'adresse ci-dessous, ouvrez un nouvel onglet, collez-la et appuyez Entree. Deposez-y le fichier telecharge.</div>
           <div style="display:flex;gap:8px">
-            <div style="flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:10px 13px;font-family:var(--mfnt);font-size:13px;color:#fff;font-weight:600;letter-spacing:.5px">app.netlify.com/drop</div>
-            <button onclick="copyText('https://app.netlify.com/drop')" id="netlify-copy-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:10px 16px;font-family:var(--cfnt);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">COPIER L\'ADRESSE</button>
+            <div style="flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:10px 13px;font-family:var(--mfnt);font-size:13px;color:#fff;font-weight:600;letter-spacing:.5px">pages.cloudflare.com</div>
+            <button onclick="copyText('https://pages.cloudflare.com')" id="netlify-copy-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:10px 16px;font-family:var(--cfnt);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">COPIER L\'ADRESSE</button>
           </div>
         </div>
         <div style="padding:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
             <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:12px;flex-shrink:0">3</div>
-            <div style="font-size:13px;font-weight:600;color:#fff">Collez votre URL Netlify et validez</div>
+            <div style="font-size:13px;font-weight:600;color:#fff">Collez votre URL Cloudflare Pages et validez</div>
           </div>
-          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:8px">Apres le depot, Netlify vous donne une URL du type xxxxx.netlify.app. Collez-la ici.</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:8px">Après le déploiement, Cloudflare Pages vous donne une URL du type xxxxx.pages.dev. Collez-la ici.</div>
           <div style="display:flex;gap:8px">
-            <input id="set-siteurl" placeholder="https://xxxxx.netlify.app" style="flex:1;font-family:var(--mfnt);font-size:12px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;padding:9px 12px;outline:none" oninput="onUrlInput(this.value)">
+            <input id="set-siteurl" placeholder="https://xxxxx.pages.dev" style="flex:1;font-family:var(--mfnt);font-size:12px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;padding:9px 12px;outline:none" oninput="onUrlInput(this.value)">
             <button onclick="saveSettings()" style="background:var(--ag);border:none;color:#fff;border-radius:7px;padding:9px 16px;font-family:var(--cfnt);font-size:14px;font-weight:800;cursor:pointer;text-transform:uppercase;white-space:nowrap">VALIDER</button>
           </div>
         </div>
@@ -863,12 +863,12 @@ html,body{height:100%;font-family:var(--bfnt);font-size:14px;-webkit-font-smooth
       <div id="url-edit-zone" style="display:none;background:var(--agl);border:1.5px solid var(--agm);border-radius:9px;padding:14px;margin-bottom:14px">
         <div style="font-size:11px;font-weight:700;color:var(--ag);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">URL active - modifier si necessaire</div>
         <div style="display:flex;gap:8px">
-          <input id="set-siteurl-edit" style="flex:1;font-family:var(--mfnt);font-size:12px;border:1.5px solid var(--agm);border-radius:6px;padding:8px 11px;outline:none" placeholder="https://xxxxx.netlify.app">
+          <input id="set-siteurl-edit" style="flex:1;font-family:var(--mfnt);font-size:12px;border:1.5px solid var(--agm);border-radius:6px;padding:8px 11px;outline:none" placeholder="https://xxxxx.pages.dev">
           <button onclick="applyUrlEdit()" style="background:var(--ag);border:none;color:#fff;border-radius:6px;padding:8px 14px;font-family:var(--cfnt);font-size:13px;font-weight:800;cursor:pointer">APPLIQUER</button>
         </div>
         <div style="font-size:10.5px;color:var(--am);margin-top:6px">Apres modification, regenerez et redeposez le fichier.</div>
       </div>
-      <div class="fg"><label>Proxy API Anthropic</label><input id="set-api" value="/.netlify/functions/anthropic"></div>
+      <div class="fg"><label>Proxy API Anthropic</label><input id="set-api" value="/api/anthropic"></div>
       <div class="divider" style="margin:14px 0 12px"></div>
       <div class="divider" style="margin:12px 0"></div>
       <div style="font-weight:700;font-size:13px;color:#0a0a08;margin-bottom:4px">&#9729;&#65039; Synchronisation cloud</div>
@@ -1130,7 +1130,7 @@ function saveSettings(){
 }
 function applyUrlEdit(){
   var ei=$('set-siteurl-edit');
-  if(!ei||!ei.value.trim().startsWith('http')){toast('URL invalide - ex: https://xxxxx.netlify.app',false);return}
+  if(!ei||!ei.value.trim().startsWith('http')){toast('URL invalide - ex: https://xxxxx.pages.dev',false);return}
   var url=ei.value.trim().replace(/\/+$/,'');
   Store.set('terr_siteurl',url);
   var si=$('set-siteurl');if(si)si.value=url;
@@ -1202,7 +1202,7 @@ function showCopyModal(text){
 }
 function copyPortalUrl(cid){
   var url=getPortalUrl(cid);
-  if(!url){showOv('ov-settings');toast('Configurez votre URL Netlify dans Parametres',false);return}
+  if(!url){showOv('ov-settings');toast('Configurez votre URL Cloudflare Pages dans Parametres',false);return}
   copyText(url);
   var btn=$('url-btn-'+cid);
   if(btn){var orig=btn.textContent;btn.textContent='COPIE!';btn.classList.add('copied');setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied')},2500)}
@@ -1340,7 +1340,7 @@ function renderCdBody(c,idx){
     +(allLoaded?'background:rgba(0,212,100,.15);color:#4ade80':'background:rgba(255,150,0,.15);color:rgba(255,180,0,.9)')+'">'+toolStatus+'</span>'
     +'</div>';
   if(!pUrl){
-    h+='<div class="url-not-configured">URL non configuree. Deployez sur Netlify via Parametres puis collez votre URL.</div>';
+    h+='<div class="url-not-configured">URL non configuree. Deployez sur Cloudflare Pages via Parametres puis collez votre URL.</div>';
     h+='<div class="url-row">'
       +'<div class="url-field" style="color:rgba(255,150,0,.7);cursor:default">Configurez votre URL dans Parametres</div>'
       +'<button class="url-btn" onclick="showOv(\'ov-settings\')" style="opacity:.7">CONFIGURER</button>'
@@ -2169,8 +2169,6 @@ async function runQaTest(){
   sep('Configuration');
   var url=getSiteUrl();
   if(url&&url.startsWith('http'))ok('URL configuree: '+url);else err('URL non configuree dans Parametres');
-  var jbBin=Store.get('terr_jb_bin');
-  if(jbBin)ok('JSONBin cloud connecte: '+jbBin.slice(0,8)+'...');else warn('JSONBin non connecte — donnees locales seulement');
   var ejsSvc=Store.get('terr_ejs_svc');
   if(ejsSvc)ok('EmailJS configure: '+ejsSvc);else warn('EmailJS non configure — emails desactives');
 
@@ -2329,7 +2327,7 @@ function portalSendEmail(type,params,cb){
 function portalGetUsers(cid){try{return JSON.parse(localStorage.getItem('terr_'+cid+'_u')||'[]')}catch(e){return[]}}
 function portalSaveUsers(cid,arr){try{localStorage.setItem('terr_'+cid+'_u',JSON.stringify(arr))}catch(e){}}
 
-// FILE STORAGE — cloud-synced via JSONBin, shared across ALL browsers/users
+// FILE STORAGE — localStorage per client
 var _filesCache={};
 
 function portalGetFiles(cid){
@@ -2348,38 +2346,8 @@ function portalSaveFiles(cid,files){
   _filesCache[cid]=valid;
   // Always persist locally first (reliable)
   try{localStorage.setItem('terr_'+cid+'_files',JSON.stringify(valid))}catch(e){}
-  // Then sync to cloud
-  jbPushFiles(cid,valid);
 }
 
-function jbPushFiles(cid,files){
-  var bin=Store.get('terr_jb_files_'+cid);
-  if(!bin){
-    jbFetch('POST','/v3/b',{files:files},{'X-Bin-Name':'files-'+cid,'X-Bin-Private':'true'})
-    .then(function(d){
-      if(d&&d.metadata&&d.metadata.id)Store.set('terr_jb_files_'+cid,d.metadata.id);
-    }).catch(function(){});
-    return;
-  }
-  jbFetch('PUT','/v3/b/'+bin,{files:files}).catch(function(){});
-}
-
-function jbPullFiles(cid,cb){
-  var bin=Store.get('terr_jb_files_'+cid);
-  if(!bin){
-    try{var ls=JSON.parse(localStorage.getItem('terr_'+cid+'_files')||'[]');_filesCache[cid]=ls;cb&&cb(ls);}catch(e){cb&&cb([]);}
-    return;
-  }
-  jbFetch('GET','/v3/b/'+bin+'/latest',null,{'X-Bin-Meta':'false'})
-  .then(function(d){
-    var files=(d&&d.files)||[];
-    var valid=files.filter(function(f){return f.expiresAt>Date.now()});
-    _filesCache[cid]=valid;
-    cb&&cb(valid);
-  }).catch(function(){
-    try{var ls=JSON.parse(localStorage.getItem('terr_'+cid+'_files')||'[]');_filesCache[cid]=ls;cb&&cb(ls);}catch(e){cb&&cb([]);}
-  });
-}
 
 function portalAddFile(cid,file){
   if(cid&&portalMe)deductCredits(cid,'save_file');
@@ -2463,7 +2431,7 @@ function loadPortal(cid){
   portalCid=cid;
   var c=S.clients.find(function(x){return x.id===cid});
   if(!c){
-    // Try to pull from JSONBin before giving up
+    // Client non trouvé en local — afficher erreur de connexion
     showScr('portal');
     $('p-login').style.display='flex';$('p-login').classList.add('on');
     portalShowConnecting(cid);
@@ -2511,48 +2479,7 @@ function portalShowConnecting(cid){
     +'<button data-cid="'+cid+'" onclick="portalRetryConnect(this.dataset.cid)" id="portal-retry-btn" style="display:none;background:var(--green);color:#fff;border:none;border-radius:10px;padding:11px 24px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(58,90,40,.35)">↻ Réessayer</button>'
     +'</div>';
 
-  // Try JSONBin pull using cached/baked bin ID
-  var bin=jbBin(); // reads localStorage OR baked data-b
-  if(!bin){
-    setTimeout(function(){portalShowOffline(cid,'Données non disponibles — fichier HTML non regénéré depuis l\'admin.');},1200);
-    return;
-  }
-  jbFetch('GET','/v3/b/'+bin+'/latest',null,{'X-Bin-Meta':'false'})
-  .then(function(d){
-    if(d&&d.error)throw new Error(d.error);
-    if(d&&d.clients&&d.clients.length>0){
-      S.clients=d.clients;S.tools=d.tools||[];S.users=d.users||[];
-      var c=S.clients.find(function(x){return x.id===cid});
-      if(c){
-        // Data loaded — continue portal init
-        stylePortalLeft(c);
-        var _sess=null;
-        try{_sess=JSON.parse(localStorage.getItem('ps_'+cid)||'null')}catch(e){}
-        if(_sess&&_sess.exp>Date.now()){
-          var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword});
-          if(_u){
-            portalMe=_u;
-            $('p-login').style.display='none';
-            showPortalApp();
-            setTimeout(function(){
-              updateCreditDisplay();
-              if(getClientCredits(portalCid)<=0)showCreditExhausted();
-              else clearCreditExhausted();
-            },100);
-            return;
-          }
-        }
-        showPortalTab('l');
-      } else {
-        portalShowOffline(cid,'Portail introuvable dans le cloud (ID: '+cid+')');
-      }
-    } else {
-      portalShowOffline(cid,'Aucune donnée disponible dans le cloud.');
-    }
-  })
-  .catch(function(e){
-    portalShowOffline(cid,'Erreur de connexion — '+e.message);
-  });
+  setTimeout(function(){portalShowOffline(cid,'Client introuvable — rechargez l\'admin ou vérifiez la synchronisation Supabase.');},800);
 }
 
 function portalShowOffline(cid, reason){
@@ -2570,7 +2497,7 @@ function portalRetryConnect(cid){
   // Reset UI and retry
   var box=document.querySelector('#p-login .p-box');
   if(box)box.innerHTML='';
-  // Force re-pull JSONBin (clear cached bin to force rediscovery)
+  // Retry connection
   portalShowConnecting(cid);
 }
 
@@ -3338,7 +3265,7 @@ function aiSearchFiles(q){
 
   var userMsg='Fichiers ('+files.length+'): '+ctx+' --- QUESTION: '+query;
 
-  fetch('/.netlify/functions/anthropic',{
+  fetch('/api/anthropic',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
@@ -3537,7 +3464,7 @@ async function sendChat(){
   typ.innerHTML='<div class="dots"><span></span><span></span><span></span></div>';
   el.appendChild(typ);el.scrollTop=el.scrollHeight;
   var sys=(chatTool.steps||[]).map(function(s,i){return '[ETAPE '+(i+1)+' - '+(s.name||s.type)+']:\n'+s.prompt}).join('\n\n---\n\n');
-  var api=$('set-api')?$('set-api').value:'/.netlify/functions/anthropic';
+  var api=$('set-api')?$('set-api').value:'/api/anthropic';
   try{
     var res=await fetch(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:chatTool.model,max_tokens:1500,system:sys,messages:chatH[chatTool.id]})});
     var data=await res.json();typ.remove();
@@ -3844,9 +3771,6 @@ var _sbWsDebounce = null;
 var _sbRealtime   = null;
 var _toolHtmlCache = {};
 
-// jbFetch/jbBin conservés pour les fichiers portail (JSONBin)
-function jbBin(){var cached=Store.get('terr_jb_bin');if(cached)return cached;var el=document.getElementById('terr-data');var baked=el?el.getAttribute('data-b'):'';if(baked&&baked.length>8){Store.set('terr_jb_bin',baked);return baked;}return '';}
-function jbFetch(method,path,payload,extraHeaders){var body={_jb:true,method:method,path:path};if(payload)body.payload=payload;if(extraHeaders)body.headers=extraHeaders;return fetch('/.netlify/functions/anthropic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
 
 // Lit S au moment du save réel pour éviter les closures périmées
 function swPushData(_unused, immediate){
@@ -3980,12 +3904,6 @@ function jbInit(){
   });
 }
 
-function setupJSONBin(){
-  if(_sbRealtime){try{_sbRealtime.close();}catch(e){}_sbRealtime=null;}
-  jbInit();
-  var st=$('jb-setup-status');
-  if(st)st.innerHTML='<span style="color:#f59e0b">Reconnexion...</span>';
-}
 
 
 
@@ -4412,19 +4330,19 @@ function showSubdomainDeployer(cid){
     '&#11015; TELECHARGER portail-'+slug+'.html</button>'+
     '</div>'+
 
-    // STEP 2: Deploy on Netlify Drop
+    // STEP 2: Deploy on Cloudflare Pages
     '<div style="background:var(--as);border:1.5px solid var(--abdr);border-radius:12px;padding:18px;margin-bottom:12px">'+
     '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'+
     '<div style="width:28px;height:28px;border-radius:50%;background:#e8f4fd;color:#0369a1;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0">2</div>'+
-    '<div><div style="font-weight:700;font-size:14px;color:#0a0a08">Deployez sur Netlify Drop</div>'+
-    '<div style="font-size:11px;color:var(--am)">Gratuit, 30 secondes, pas de compte requis</div></div>'+
+    '<div><div style="font-weight:700;font-size:14px;color:#0a0a08">Deployez sur Cloudflare Pages</div>'+
+'<div style="font-size:11px;color:var(--am)">Gratuit, 30 secondes, pas de compte requis</div></div>'+
     '</div>'+
     '<div style="font-size:12px;color:var(--am);background:var(--as2);border-radius:8px;padding:12px;margin-bottom:10px;line-height:1.7">'+
-    '&#10102; Ouvrez <strong>app.netlify.com/drop</strong> dans un nouvel onglet<br>'+
-    '&#10103; Glissez le fichier <code style="background:var(--abdr);padding:1px 5px;border-radius:4px">portail-'+slug+'.html</code> dans la zone<br>'+
-    '&#10104; Notez l\'URL genérée (ex: <em>amazing-fox-123.netlify.app</em>)'+
+    '&#10102; Ouvrez <strong>pages.cloudflare.com</strong> dans un nouvel onglet<br>'+
+'&#10103; Glissez le fichier <code style="background:var(--abdr);padding:1px 5px;border-radius:4px">portail-'+slug+'.html</code> dans la zone<br>'+
+    '&#10104; Notez l\'URL genérée (ex: <em>amazing-fox-123.pages.dev</em>)'+
     '</div>'+
-    '<button onclick="openNetlifyDrop()" style="width:100%;background:#0070f3;border:none;color:#fff;border-radius:8px;padding:10px;font-family:var(--cfnt);font-size:14px;font-weight:800;cursor:pointer">OUVRIR NETLIFY DROP &rarr;</button>'+
+    '<button onclick="openNetlifyDrop()" style="width:100%;background:#f6821f;border:none;color:#fff;border-radius:8px;padding:10px;font-family:var(--cfnt);font-size:14px;font-weight:800;cursor:pointer">OUVRIR CLOUDFLARE PAGES &rarr;</button>'+
     '</div>'+
 
     // STEP 3: DNS config
@@ -4437,10 +4355,10 @@ function showSubdomainDeployer(cid){
     '<div style="font-family:monospace;font-size:12px;background:#0a0a08;color:#4ade80;border-radius:8px;padding:14px;margin-bottom:10px;line-height:2">'+
     '<div><span style="color:rgba(255,255,255,.4)">Type</span>  <span style="color:rgba(255,255,255,.4)">Sous-domaine</span>  <span style="color:rgba(255,255,255,.4)">Cible</span></div>'+
     '<div><span style="color:#fff">A</span>     <span style="color:#fbbf24">'+slug+'</span>         <span style="color:#4ade80">75.2.60.5</span></div>'+
-    '<div><span style="color:#fff">CNAME</span> <span style="color:#fbbf24">www.'+slug+'</span>     <span style="color:#4ade80">VOTRE-URL.netlify.app</span></div>'+
-    '</div>'+
+    '<div><span style="color:#fff">CNAME</span> <span style="color:#fbbf24">www.'+slug+'</span>     <span style="color:#4ade80">VOTRE-URL.pages.dev</span></div>'+
+'</div>'+
     '<div style="font-size:11px;color:var(--am);line-height:1.7">&#8594; OVH → Noms de domaine → <strong>'+baseDomain+'</strong> → Zone DNS → Ajouter une entree<br>'+
-    '&#8594; Remplacez <em>VOTRE-URL.netlify.app</em> par l\'URL obtenue a l\'etape 2<br>'+
+    '&#8594; Remplacez <em>VOTRE-URL.pages.dev</em> par l\'URL obtenue a l\'etape 2<br>'+
     '&#8594; Propagation DNS : <strong>1-24h</strong></div>'+
     '</div>'+
 
@@ -4467,7 +4385,7 @@ function downloadClientPortal(cid){
   var blob=new Blob([html],{type:'text/html;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url;a.download='index.html'; // Netlify requires index.html as entry point
+  a.href=url;a.download='index.html';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url)},5000);
   toast('Fichier portail telecharge ✓');
@@ -4489,7 +4407,7 @@ function saveClientPortalUrl(cid){
 
 
 function buildMasterPromptHTML(name, icon, desc, prompt, welcome, model){
-  var apiProxy=Store.get('terr_apiproxy')||'/.netlify/functions/anthropic';
+  var apiProxy=Store.get('terr_apiproxy')||'/api/anthropic';
   var welcomeMsg=welcome||'Bonjour ! Je suis '+name+'. Deposez vos fichiers ou posez-moi une question.';
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -5008,7 +4926,7 @@ if(!_realUrl.startsWith('http')&&!_realUrl.includes('?portal=')){
       b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:var(--ad);border-top:2px solid var(--ag);padding:11px 22px;display:flex;align-items:center;gap:14px;z-index:500;font-size:13px';
       var ico=document.createElement('span');ico.textContent='\uD83D\uDE80';
       var txt=document.createElement('div');txt.style.cssText='flex:1;color:rgba(255,255,255,.75)';
-      txt.innerHTML='<strong style="color:#fff">Deploiement requis</strong> - Pour que les liens client fonctionnent, deployez sur Netlify (2 min).';
+      txt.innerHTML='<strong style="color:#fff">Deploiement requis</strong> - Pour que les liens client fonctionnent, deployez sur Cloudflare Pages.';
       var btn1=document.createElement('button');btn1.textContent='CONFIGURER';
       btn1.style.cssText='background:var(--ag);border:none;color:#fff;border-radius:6px;padding:8px 18px;font-family:var(--cfnt);font-size:14px;font-weight:800;cursor:pointer;text-transform:uppercase';
       btn1.onclick=function(){showOv('ov-settings');var s=document.getElementById('setup-banner');if(s)s.remove()};

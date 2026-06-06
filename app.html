@@ -1839,7 +1839,7 @@ function saveSettings(){
 }
 function applyUrlEdit(){
   var ei=$('set-siteurl-edit');
-  if(!ei||!ei.value.trim().startsWith('http')){toast('URL invalide - ex: https://xxxxx.netlify.app',false);return}
+  if(!ei||!ei.value.trim().startsWith('http')){toast('URL invalide - ex: https://xxxxx.pages.dev',false);return}
   var url=ei.value.trim().replace(/\/+$/,'');
   Store.set('terr_siteurl',url);
   var si=$('set-siteurl');if(si)si.value=url;
@@ -8138,7 +8138,7 @@ function showSubdomainDeployer(cid){
     '<div style="font-size:12px;color:var(--am);background:var(--as2);border-radius:8px;padding:12px;margin-bottom:10px;line-height:1.7">'+
     '&#10102; Ouvrez <strong>app.netlify.com/drop</strong> dans un nouvel onglet<br>'+
     '&#10103; Glissez le fichier <code style="background:var(--abdr);padding:1px 5px;border-radius:4px">portail-'+slug+'.html</code> dans la zone<br>'+
-    '&#10104; Notez l\'URL genérée (ex: <em>amazing-fox-123.netlify.app</em>)'+
+    '&#10104; Notez l\'URL genérée (ex: <em>amazing-fox-123.pages.dev</em>)'+
     '</div>'+
     '<button onclick="openNetlifyDrop()" style="width:100%;background:#0070f3;border:none;color:#fff;border-radius:8px;padding:10px;font-family:var(--cfnt);font-size:14px;font-weight:800;cursor:pointer">OUVRIR NETLIFY DROP &rarr;</button>'+
     '</div>'+
@@ -8153,10 +8153,10 @@ function showSubdomainDeployer(cid){
     '<div style="font-family:monospace;font-size:12px;background:#0a0a08;color:#4ade80;border-radius:8px;padding:14px;margin-bottom:10px;line-height:2">'+
     '<div><span style="color:rgba(255,255,255,.4)">Type</span>  <span style="color:rgba(255,255,255,.4)">Sous-domaine</span>  <span style="color:rgba(255,255,255,.4)">Cible</span></div>'+
     '<div><span style="color:#fff">A</span>     <span style="color:#fbbf24">'+slug+'</span>         <span style="color:#4ade80">75.2.60.5</span></div>'+
-    '<div><span style="color:#fff">CNAME</span> <span style="color:#fbbf24">www.'+slug+'</span>     <span style="color:#4ade80">VOTRE-URL.netlify.app</span></div>'+
+    '<div><span style="color:#fff">CNAME</span> <span style="color:#fbbf24">www.'+slug+'</span>     <span style="color:#4ade80">VOTRE-URL.pages.dev</span></div>'+
     '</div>'+
     '<div style="font-size:11px;color:var(--am);line-height:1.7">&#8594; OVH → Noms de domaine → <strong>'+baseDomain+'</strong> → Zone DNS → Ajouter une entree<br>'+
-    '&#8594; Remplacez <em>VOTRE-URL.netlify.app</em> par l\'URL obtenue a l\'etape 2<br>'+
+    '&#8594; Remplacez <em>VOTRE-URL.pages.dev</em> par l\'URL obtenue a l\'etape 2<br>'+
     '&#8594; Propagation DNS : <strong>1-24h</strong></div>'+
     '</div>'+
 
