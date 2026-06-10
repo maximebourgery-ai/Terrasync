@@ -1167,7 +1167,7 @@ tbody tr:hover td{background:rgba(255,255,255,.04)!important}
       </div>
       <div id="stab-deploy-content" style="display:none">
         <div style="margin-bottom:14px"><label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:6px">URL Netlify du site</label>
-          <div style="display:flex;gap:8px"><input id="set-site-url" placeholder="https://terrasyncautomation.fr" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none" oninput="onUrlInput(this)"><button onclick="applyUrlEdit()" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">Sauver</button></div>
+          <div style="display:flex;gap:8px"><input id="set-site-url" placeholder="https://terrasyncstatera.pages.dev" style="flex:1;border:1.5px solid var(--abdr);border-radius:8px;padding:9px 12px;font-size:13px;outline:none" oninput="onUrlInput(this)"><button onclick="applyUrlEdit()" style="background:var(--ag);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">Sauver</button></div>
         </div>
         <div style="background:var(--as2);border-radius:10px;padding:14px;margin-bottom:14px">
           <div style="font-size:11px;font-weight:700;color:var(--am);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Exporter / Sauvegarder</div>
@@ -8100,7 +8100,7 @@ function showSubdomainDeployer(cid){
   var slug=c.name.toLowerCase()
     .replace(/[^a-z0-9]+/g,'-')
     .replace(/^-+|-+$/g,'');
-  var baseDomain=getSiteUrl()||'terrasyncautomation.fr';
+  var baseDomain=getSiteUrl()||'terrasyncstatera.pages.dev';
   baseDomain=baseDomain.replace(/^https?:\/\//,'').split('/')[0].split('?')[0];
   // Remove any subdomain to get root domain
   var parts=baseDomain.split('.');
