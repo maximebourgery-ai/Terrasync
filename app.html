@@ -6992,6 +6992,7 @@ var _toolHtmlCache = {}; // cache mémoire htmlContent par tool.id
 // ── sbFetch : proxy Supabase via Netlify ──────────────────────────────
 function sbFetch(method, path, payload, extra) {
   var b = {_sb:true, method:method, path:path};
+  if(sessionStorage.getItem('terr_admin_profile')==='2') b._profile='2';
   if(payload !== undefined) b.payload = payload;
   if(extra) b.headers = extra;
   return fetch(PROXY, {
@@ -7198,8 +7199,14 @@ function deleteToolHtml(toolId) {
 
 // ── Realtime WebSocket ────────────────────────────────────────────────
 function sbStartRealtime() {
-  var sbUrl  = Store.get('terr_sb_url')  || '';
-  var sbAnon = Store.get('terr_sb_anon') || '';
+  var sbUrl, sbAnon;
+  if(sessionStorage.getItem('terr_admin_profile')==='2'){
+    sbUrl=sessionStorage.getItem('terr_sb_url_2')||'';
+    sbAnon=sessionStorage.getItem('terr_sb_anon_2')||'';
+  }else{
+    sbUrl=Store.get('terr_sb_url')||'';
+    sbAnon=Store.get('terr_sb_anon')||'';
+  }
   if(!sbUrl || !sbAnon) return;
   var wsUrl = sbUrl.replace(/^https?/,'wss') + '/realtime/v1/websocket?apikey='+sbAnon;
   if(_sbRealtime) { try{_sbRealtime.close();}catch(e){} _sbRealtime=null; }
@@ -8476,19 +8483,54 @@ async function authLogin(){
   var legacyHash=_authHashLegacy(user+':'+pass);
   var admin=admins.find(function(a){return a.username===user&&(a.hash===hash||a.hash===legacyHash)});
   if(!admin){
-    var _ac=((_arl&&_arl.count)||0)+1;
-    var _al=_ac>=5?{count:_ac,until:Date.now()+15*60*1000}:{count:_ac};
-    try{localStorage.setItem('admin_rl',JSON.stringify(_al))}catch(e){}
-    err.textContent=_ac>=5?'Compte verrouillé 15 min. Trop de tentatives.':'Identifiant ou mot de passe incorrect.';
-    err.className='auth-err on';
-    var box=document.querySelector('.auth-box');
-    box.style.transform='translateX(-8px)';
-    setTimeout(function(){box.style.transform='translateX(8px)'},80);
-    setTimeout(function(){box.style.transform='translateX(-4px)'},160);
-    setTimeout(function(){box.style.transform='none'},240);
+    var btn2=document.querySelector('#auth-login-form .auth-btn');
+    if(btn2){btn2.disabled=true;btn2.textContent='Vérification...';}
+    fetch('/api/admin-auth',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:user,password:pass})
+    }).then(function(r){return r.json()}).then(function(res){
+      if(res&&res.profile===2&&res.sbUrl&&res.sbAnon){
+        try{
+          sessionStorage.setItem('terr_admin_profile','2');
+          sessionStorage.setItem('terr_sb_url_2',res.sbUrl);
+          sessionStorage.setItem('terr_sb_anon_2',res.sbAnon);
+        }catch(e){}
+        try{localStorage.removeItem('admin_rl')}catch(e){}
+        var session2={id:'admin2',username:user,role:'super',exp:Date.now()+8*60*60*1000};
+        try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
+        sbStartRealtime();
+        if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
+        setTimeout(function(){
+          document.getElementById('auth-screen').classList.add('hidden');
+          var badge=document.querySelector('.abadge');
+          if(badge)badge.textContent='Admin — '+user;
+        },600);
+      }else{
+        var _ac=((_arl&&_arl.count)||0)+1;
+        var _al=_ac>=5?{count:_ac,until:Date.now()+15*60*1000}:{count:_ac};
+        try{localStorage.setItem('admin_rl',JSON.stringify(_al))}catch(e){}
+        if(btn2){btn2.disabled=false;btn2.textContent='ACCEDER →';}
+        err.textContent=_ac>=5?'Compte verrouillé 15 min. Trop de tentatives.':'Identifiant ou mot de passe incorrect.';
+        err.className='auth-err on';
+        var box2=document.querySelector('.auth-box');
+        box2.style.transform='translateX(-8px)';
+        setTimeout(function(){box2.style.transform='translateX(8px)'},80);
+        setTimeout(function(){box2.style.transform='translateX(-4px)'},160);
+        setTimeout(function(){box2.style.transform='none'},240);
+      }
+    }).catch(function(){
+      if(btn2){btn2.disabled=false;btn2.textContent='ACCEDER →';}
+      err.textContent='Identifiant ou mot de passe incorrect.';err.className='auth-err on';
+      var box2=document.querySelector('.auth-box');
+      box2.style.transform='translateX(-8px)';
+      setTimeout(function(){box2.style.transform='translateX(8px)'},80);
+      setTimeout(function(){box2.style.transform='translateX(-4px)'},160);
+      setTimeout(function(){box2.style.transform='none'},240);
+    });
     return;
   }
-  // Succès — réinitialiser le compteur
+  // Succès profil 1 — réinitialiser le compteur
   try{localStorage.removeItem('admin_rl')}catch(e){}
   // Migration transparente : si hash legacy détecté → upgrade vers SHA-256
   if(admin.hash===legacyHash&&admin.hash!==hash){
@@ -8509,7 +8551,12 @@ async function authLogin(){
 }
 
 function authLogout(){
-  try{localStorage.removeItem(AUTH_SESSION_KEY)}catch(e){}
+  try{
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem('terr_admin_profile');
+    sessionStorage.removeItem('terr_sb_url_2');
+    sessionStorage.removeItem('terr_sb_anon_2');
+  }catch(e){}
   document.getElementById('auth-pass').value='';
   document.getElementById('auth-user').value='';
   document.getElementById('auth-err').className='auth-err';
