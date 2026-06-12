@@ -23,7 +23,7 @@ export async function onRequestPost({ request, env }) {
 
   if (!expectedUser || !expectedPass) return json({ error: 'Profile 2 not configured' }, 503);
 
-  const valid = username === expectedUser && password === expectedPass;
+  const valid = username.toLowerCase() === expectedUser.toLowerCase() && password === expectedPass;
   if (!valid) return json({ error: 'Invalid credentials' }, 401);
 
   const sbUrl = (env.SUPABASE_URL_2 || '').replace(/\/+$/, '');
