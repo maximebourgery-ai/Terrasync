@@ -1594,8 +1594,10 @@ function jbBin(){try{return Store.get('terr_jb_bin')||null;}catch(e){return null
   var SB_URL  = 'https://xhhbutwopvwfwqspbsiu.supabase.co';
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoaGJ1dHdvcHZ3Zndxc3Bic2l1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTYzOTQsImV4cCI6MjA4OTQ5MjM5NH0.hmaUibc3KkiRWl2qJvX5Uy7K6IZLQt6568LsrIGW0pg';
   if(SB_URL && SB_ANON){
-    if(!localStorage.getItem('terr_sb_url'))  localStorage.setItem('terr_sb_url',  SB_URL);
-    if(!localStorage.getItem('terr_sb_anon')) localStorage.setItem('terr_sb_anon', SB_ANON);
+    // Store.get fait JSON.parse : écrire via Store.set, et réparer les
+    // anciennes valeurs stockées en chaîne brute (non-JSON) qui le faisaient échouer
+    if(Store.get('terr_sb_url')===null)  Store.set('terr_sb_url',  SB_URL);
+    if(Store.get('terr_sb_anon')===null) Store.set('terr_sb_anon', SB_ANON);
   }
 })();
 
