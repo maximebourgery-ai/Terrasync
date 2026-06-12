@@ -3782,11 +3782,11 @@ function saveToolHtml(toolId,html,cb){
   sbFetch('POST','/rest/v1/tool_content',
     {id:toolId,workspace_id:'main',name:'',html:html,updated_at:now},
     {'Prefer':'resolution=merge-duplicates'}
-  ).then(function(){cb&&cb(true);}).catch(function(){cb&&cb(false);});
+  ).then(function(){_toolHtmlCache[toolId]=html;cb&&cb(true);}).catch(function(){cb&&cb(false);});
 }
 function loadToolHtml(toolId,cb){
   sbFetch('GET','/rest/v1/tool_content?id=eq.'+encodeURIComponent(toolId)+'&select=html')
-  .then(function(rows){cb&&cb(rows&&rows.length?rows[0].html:null);})
+  .then(function(rows){var html=rows&&rows.length?rows[0].html:null;if(html)_toolHtmlCache[toolId]=html;cb&&cb(html);})
   .catch(function(){cb&&cb(null);});
 }
 function showToolVersions(tid){
@@ -3986,7 +3986,7 @@ function sbStartRealtime(){
 function jbInit(){
   jbPull(function(ok){
     if(ok){
-      jbSetStatus('ok','Cloud sync ✓');renderSb();renderDetail();renderKanban();
+      jbSetStatus('ok','Cloud sync ✓');syncPortalAccounts();renderSb();renderDetail();renderKanban();
       sbStartRealtime();
     } else {
       jbSetStatus('err','Cloud inaccessible — retry dans 30s');
@@ -5045,7 +5045,7 @@ if(_isPortalVisit){
 
 
 // INIT
-restore();syncPortalAccounts();persist();
+restore();
 $('tab-users-content').style.display='none';
 $('tab-clients-content').style.display='flex';$('tab-clients-content').style.flexDirection='column';$('tab-clients-content').style.flex='1';$('tab-clients-content').style.overflow='hidden';
 
