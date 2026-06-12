@@ -1475,7 +1475,18 @@ function approveUser(uid){
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
 }
-function delUser(uid){S.users=S.users.filter(function(u){return u.id!==uid});persist();renderDetail();renderKanban();toast('Compte supprime')}
+function delUser(uid){
+  var u=S.users.find(function(x){return x.id===uid});
+  if(!u)return;
+  // Supprimer de Supabase portal_users → la personne ne peut plus se reconnecter
+  sbFetch('DELETE','/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid)).catch(function(){});
+  // Supprimer du localStorage → syncPortalAccounts ne recrée pas l'utilisateur au prochain chargement
+  var pu=portalGetUsers(u.cid);
+  portalSaveUsers(u.cid,pu.filter(function(x){return x.id!==uid}));
+  // Supprimer de la mémoire et sauvegarder le workspace
+  S.users=S.users.filter(function(x){return x.id!==uid});
+  persist();renderDetail();renderKanban();toast('Compte supprime');
+}
 
 // FILES
 function dzOv(e,id){e.preventDefault();var el=$('dz-'+id);if(el)el.classList.add('over')}
