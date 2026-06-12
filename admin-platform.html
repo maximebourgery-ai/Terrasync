@@ -4732,12 +4732,18 @@ function authLogin(){
   if(!admin){
     var btn2=document.querySelector('#auth-login-form .auth-btn');
     if(btn2){btn2.disabled=true;btn2.textContent='Vérification...';}
-    var _p2url=location.protocol+'//'+location.host.replace(/^www\./,'')+'/api/admin-auth';
-    fetch(_p2url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username:user,password:pass})
-    }).then(function(r){return r.json()}).then(function(res){
+    // POST sur le domaine courant d'abord ; si cette variante échoue (DNS
+    // absent ou redirection www qui transforme le POST en GET), retenter
+    // sur l'autre variante avec/sans www.
+    var _p2post=function(host){
+      return fetch(location.protocol+'//'+host+'/api/admin-auth',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username:user,password:pass})
+      }).then(function(r){if(r.redirected||r.status===405)throw new Error('redirected');return r});
+    };
+    var _altHost=location.host.indexOf('www.')===0?location.host.slice(4):'www.'+location.host;
+    _p2post(location.host).catch(function(){return _p2post(_altHost)}).then(function(r){return r.json()}).then(function(res){
       if(res&&res.profile===2&&res.sbUrl&&res.sbAnon){
         try{
           sessionStorage.setItem('terr_admin_profile','2');
