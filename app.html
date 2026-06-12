@@ -1626,6 +1626,15 @@ var S={clients:[],tools:[],users:[],compta:[]};
 var activeC=null,chatTool=null,draftTT='web',draftFile=null,draftSteps=[];
 var chatH={},chatF={};
 var portalCid=null,portalMe=null,isAdminPreview=false,resetToken=null;
+// Profil Supabase actif : '2' si admin connecté en profil 2, ou si le lien
+// portail a été généré par un admin profil 2 (?portal=X&p=2). Sans ce flag,
+// un visiteur portail interroge toujours la base Supabase du profil 1 et ne
+// voit jamais les comptes/validations faits depuis le profil 2.
+window._portalProfile=null;
+function _isProfile2(){
+  try{if(sessionStorage.getItem('terr_admin_profile')==='2')return true;}catch(e){}
+  return window._portalProfile==='2';
+}
 var editingCid=null;
 
 var PAL=[
@@ -1813,7 +1822,7 @@ function getSiteUrl(){
 }
 function getPortalUrl(cid){
   var base=getSiteUrl();
-  return base?base+'?portal='+cid:null;
+  return base?base+'?portal='+cid+(_isProfile2()?'&p=2':''):null;
 }
 function onUrlInput(val){
   if(val&&val.trim().startsWith('http')){Store.set('terr_siteurl',val.trim().replace(/\/+$/,''));}
@@ -2234,10 +2243,9 @@ function renderCdBody(c,idx){
 function approveUser(uid){
   var u=S.users.find(function(x){return x.id===uid});if(!u)return;
   u.status='approved';
-  sbFetch('PATCH','/rest/v1/portal_users?id=eq.'+encodeURIComponent(u.id),{status:'approved'}).catch(function(){});
-  if(!_portalUsersCache[u.cid])_portalUsersCache[u.cid]=[];
-  var cu=_portalUsersCache[u.cid].find(function(x){return x.id===u.id;});
-  if(cu)cu.status='approved';
+  // PATCH par email+cid avec fallback POST : un PATCH par id seul échoue en
+  // silence (0 ligne) si l'enregistrement portal_users n'existe pas encore
+  syncUserToPortal(u);
   persist();
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
@@ -2377,7 +2385,7 @@ function syncUserToPortal(u){
     // Si aucun enregistrement trouvé (PATCH sur 0 lignes), créer l'entrée
     if(r===null||r&&Array.isArray(r)&&r.length===0){
       sbFetch('POST','/rest/v1/portal_users',
-        [{id:u.id,cid:u.cid,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,tool_ids:u.toolIds||[],last:u.last||''}],
+        [{id:u.id,cid:u.cid,workspace_id:_sbWsId,name:u.name,email:u.email,pwd:u.pwd||'',status:u.status,tool_ids:u.toolIds||[],last:u.last||''}],
         {'Prefer':'resolution=merge-duplicates'}
       ).catch(function(){});
     }
@@ -2804,7 +2812,7 @@ function showResetLinks(cid){
   container.innerHTML='';
   users.forEach(function(u){
     var token=btoa(JSON.stringify({uid:u.id,cid:c.id,email:u.email,exp:Date.now()+86400000}));
-    var url=base?base+'?portal='+c.id+'&reset='+token:'';
+    var url=base?base+'?portal='+c.id+(_isProfile2()?'&p=2':'')+'&reset='+token:'';
     var row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--abdr)';
     var info=document.createElement('div');info.style.flex='1';
@@ -4735,6 +4743,7 @@ function _portalInitAfterLoad(cid,c){
       var currentUrl = new URL(window.location.href);
       if(!currentUrl.searchParams.has('portal')){
         currentUrl.searchParams.set('portal', cid);
+        if(_isProfile2())currentUrl.searchParams.set('p','2');
         window.history.replaceState({}, '', currentUrl.toString());
       }
 
@@ -5114,7 +5123,7 @@ function applyForcedPasswordChange(){
 
   // Nettoyer l'URL (supprimer ?reset= si présent)
   try{
-    var _cp=window.location.pathname+'?portal='+portalCid;
+    var _cp=window.location.pathname+'?portal='+portalCid+(_isProfile2()?'&p=2':'');
     if(window.location.search.indexOf('reset=')>=0) history.replaceState(null,'',_cp);
   }catch(e){}
 
@@ -5221,7 +5230,7 @@ function doForgot(){
     {'Prefer':'return=minimal'}
   ).catch(function(){});
   var base=getSiteUrl();
-  var resetUrl=base?base+'?portal='+portalCid+'&reset='+encodeURIComponent(token):'';
+  var resetUrl=base?base+'?portal='+portalCid+(_isProfile2()?'&p=2':'')+'&reset='+encodeURIComponent(token):'';
   var btn=$('p-btn-forgot');if(btn){btn.textContent='Envoi...';btn.disabled=true;}
   portalSendEmail('reset',{to_name:u.name,to_email:e,link:resetUrl},function(ok){
     if(btn){btn.textContent='ENVOYER →';btn.disabled=false;}
@@ -5270,7 +5279,7 @@ function doNewPwd(){
     _notifyPasswordManager(r.email||r.name||'',p);
     resetToken=null;
     try{
-      var _cleanUrl=window.location.pathname+'?portal='+(r.cid||portalCid||'');
+      var _cleanUrl=window.location.pathname+'?portal='+(r.cid||portalCid||'')+(_isProfile2()?'&p=2':'');
       history.replaceState(null,'',_cleanUrl);
     }catch(e){}
     $('pfrs').style.display='none';showPortalTab('l');
@@ -6660,6 +6669,15 @@ function parseUrl(){
   // (permet d'aller sur l'admin en tapant juste l'URL du site)
   
   if(portal){
+    // Router le portail vers la bonne instance Supabase (profil 1 ou 2).
+    // Le flag est mémorisé par client pour survivre aux rechargements et aux
+    // réécritures d'URL qui suppriment le paramètre p.
+    if(params.get('p')==='2'){
+      window._portalProfile='2';
+      try{localStorage.setItem('terr_pp_'+portal,'2')}catch(e){}
+    }else{
+      try{if(localStorage.getItem('terr_pp_'+portal)==='2')window._portalProfile='2'}catch(e){}
+    }
     loadPortal(portal);
     if(reset){
       // Stocker le token brut (UUID opaque) — la vérification se fait en DB dans doNewPwd
@@ -6992,7 +7010,7 @@ var _toolHtmlCache = {}; // cache mémoire htmlContent par tool.id
 // ── sbFetch : proxy Supabase via Netlify ──────────────────────────────
 function sbFetch(method, path, payload, extra) {
   var b = {_sb:true, method:method, path:path};
-  if(sessionStorage.getItem('terr_admin_profile')==='2') b._profile='2';
+  if(_isProfile2()) b._profile='2';
   if(payload !== undefined) b.payload = payload;
   if(extra) b.headers = extra;
   return fetch(PROXY, {
@@ -7200,7 +7218,13 @@ function deleteToolHtml(toolId) {
 // ── Realtime WebSocket ────────────────────────────────────────────────
 function sbStartRealtime() {
   var sbUrl, sbAnon;
-  if(sessionStorage.getItem('terr_admin_profile')==='2'){
+  // Visiteur portail profil 2 : pas de clé anon pour la 2e instance — ne pas
+  // ouvrir un websocket vers la base du profil 1 (écraserait S avec les
+  // mauvaises données). Le portail garde le refresh manuel via le proxy.
+  var _isAdmin2=false;
+  try{_isAdmin2=sessionStorage.getItem('terr_admin_profile')==='2'}catch(e){}
+  if(window._portalProfile==='2'&&!_isAdmin2) return;
+  if(_isAdmin2){
     sbUrl=sessionStorage.getItem('terr_sb_url_2')||'';
     sbAnon=sessionStorage.getItem('terr_sb_anon_2')||'';
   }else{
@@ -8037,7 +8061,7 @@ function buildPortalHTML(c){
     html += '  var token=btoa(JSON.stringify({uid:u.id,cid:CID,email:e,exp:Date.now()+86400000}));';
     html += '  // Reset link always points to the main deployed site';
     html += '  var _siteBase=(typeof SITE_URL!=="undefined"&&SITE_URL)||window.location.href.split("?")[0];';
-    html += '  var rl=_siteBase+"?portal="+CID+"&reset="+encodeURIComponent(token);';
+    html += '  var rl=_siteBase+"?portal="+CID+"' + (_isProfile2()?'&p=2':'') + '&reset="+encodeURIComponent(token);';
     html += '  var btn=document.getElementById("btn-forgot");if(btn){btn.textContent="Envoi...";btn.disabled=true;}';
     html += '  sendEmail("reset",{name:u.name,email:e,link:rl},function(ok){';
     html += '    var btn2=document.getElementById("btn-forgot");if(btn2){btn2.textContent="ENVOYER \u2192";btn2.disabled=false;}';

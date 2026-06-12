@@ -155,7 +155,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
     showToast('Connexion réussie ! Redirection...', 'success');
     setTimeout(() => {
-      window.location.href = `/app.html?portal=${result.portalId}`;
+      window.location.href = `/app.html?portal=${result.portalId}${result.p2 ? '&p=2' : ''}`;
     }, 1000);
 
   } catch (err) {

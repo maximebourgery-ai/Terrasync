@@ -25,30 +25,45 @@ export async function onRequestPost({ request, env }) {
     const supabaseKey = env.SUPABASE_SERVICE_KEY || '';
     if (!supabaseUrl || !supabaseKey) return json({ error: 'Supabase credentials manquants.' }, 503);
 
-    const resp = await fetch(
-      `${supabaseUrl}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=eq.approved&select=id,cid,pwd&limit=1`,
-      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
-    );
-    if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
-    const rows = await resp.json();
+    const findUser = async (url, key) => {
+      const resp = await fetch(
+        `${url}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=eq.approved&select=id,cid,pwd&limit=1`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+      );
+      if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
+      const rows = await resp.json();
+      return rows && rows.length && rows[0].cid ? rows[0] : null;
+    };
 
-    if (!rows || rows.length === 0 || !rows[0].cid) {
+    // Chercher dans l'instance principale, puis dans celle du profil 2
+    let user = await findUser(supabaseUrl, supabaseKey);
+    let p2 = false;
+    if (!user) {
+      const url2 = (env.SUPABASE_URL_2 || '').replace(/\/+$/, '');
+      const key2 = env.SUPABASE_SERVICE_KEY_2 || '';
+      if (url2 && key2) {
+        try { user = await findUser(url2, key2); } catch (e) { /* instance 2 indisponible — ignorer */ }
+        if (user) p2 = true;
+      }
+    }
+
+    if (!user) {
       return json({ success: false, message: 'Aucun compte trouvé avec cet email' }, 404);
     }
 
     // Vérification mot de passe (supporte PBKDF2 et legacy plaintext)
-    if (!rows[0].pwd) {
+    if (!user.pwd) {
       return json({ success: false, message: 'Compte non configuré, contactez votre administrateur' }, 403);
     }
     if (!password) {
       return json({ success: false, message: 'Mot de passe requis' }, 401);
     }
-    const pwdOk = await verifyPassword(password, rows[0].pwd);
+    const pwdOk = await verifyPassword(password, user.pwd);
     if (!pwdOk) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
     }
 
-    return json({ success: true, portalId: rows[0].cid, userId: rows[0].id, message: 'Portail trouvé !' });
+    return json({ success: true, portalId: user.cid, userId: user.id, p2, message: 'Portail trouvé !' });
   } catch (error) {
     return json({ success: false, error: 'Erreur serveur', details: error.message }, 500);
   }
