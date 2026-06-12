@@ -65,23 +65,26 @@ export async function onRequestPost({ request, env }) {
   const SB_KEY = env.SUPABASE_SERVICE_KEY || '';
 
   if (body._sb) {
-    if (!SB_URL) return json({ error: 'SUPABASE_URL manquant dans les variables Cloudflare Pages.' }, 503);
-    if (!SB_KEY) return json({ error: 'SUPABASE_SERVICE_KEY manquant dans les variables Cloudflare Pages.' }, 503);
+    const isP2 = body._profile === '2';
+    const sbUrl = isP2 ? (env.SUPABASE_URL_2 || '').replace(/\/+$/, '') : SB_URL;
+    const sbKey = isP2 ? (env.SUPABASE_SERVICE_KEY_2 || '') : SB_KEY;
+    if (!sbUrl) return json({ error: 'SUPABASE_URL manquant dans les variables Cloudflare Pages.' }, 503);
+    if (!sbKey) return json({ error: 'SUPABASE_SERVICE_KEY manquant dans les variables Cloudflare Pages.' }, 503);
     const { method = 'GET', path, payload, headers: extra = {} } = body;
     const ALLOWED_TABLES = ['workspace','tool_content','tool_versions','portal_files','portal_users','admin_accounts'];
     const pathAllowed = typeof path === 'string' && ALLOWED_TABLES.some(t => path.startsWith('/rest/v1/' + t));
     if (!pathAllowed) return json({ error: 'Chemin non autorisé.' }, 403);
     const headers = {
       'Content-Type': 'application/json',
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
+      apikey: sbKey,
+      Authorization: `Bearer ${sbKey}`,
       Prefer: extra['Prefer'] || 'return=representation',
       ...extra,
     };
     const opts = { method, headers };
     if (payload != null && !['GET', 'HEAD', 'DELETE'].includes(method)) opts.body = JSON.stringify(payload);
     try {
-      const resp = await fetch(SB_URL + path, opts);
+      const resp = await fetch(sbUrl + path, opts);
       const text = await resp.text();
       if (!text || resp.status === 204) return json(null, resp.status);
       return new Response(text, { status: resp.status, headers: { ...CORS, 'Content-Type': 'application/json' } });
