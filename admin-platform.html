@@ -4732,7 +4732,8 @@ function authLogin(){
   if(!admin){
     var btn2=document.querySelector('#auth-login-form .auth-btn');
     if(btn2){btn2.disabled=true;btn2.textContent='Vérification...';}
-    fetch('/api/admin-auth',{
+    var _p2url=location.protocol+'//'+location.host.replace(/^www\./,'')+'/api/admin-auth';
+    fetch(_p2url,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username:user,password:pass})
