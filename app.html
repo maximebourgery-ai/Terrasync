@@ -4700,6 +4700,16 @@ function _portalConnectFetch(cid){
   jbPull(function(ok){
   if(_sub)_sub.textContent=ok?'Chargement des utilisateurs…':'Mode hors-ligne — utilisation du cache local…';
     var c=S.clients.find(function(x){return x.id===cid});
+    // Si le client est introuvable dans le profil actuel, basculer automatiquement
+    // vers le Profil 2 (une seule tentative pour éviter les boucles infinies).
+    // Cela résout le cas où l'URL du portail ne contient plus le paramètre &p=2
+    // après une migration de domaine, mais que les données sont bien en Profil 2.
+    if(!c&&!_isProfile2()&&!window._p2autoRetried){
+      window._p2autoRetried=true;
+      window._portalProfile='2';
+      try{localStorage.setItem('terr_pp_'+cid,'2')}catch(e){}
+      _portalConnectFetch(cid);return;
+    }
     if(!ok){
       // Fallback cache local
       if(!c){portalShowOffline(cid,'Portail introuvable — vérifiez votre connexion.');return;}
@@ -4783,7 +4793,7 @@ function portalShowOffline(cid, reason){
 function portalRetryConnect(cid){
   // Reset UI and retry
   var ov=document.getElementById('portal-conn-overlay');if(ov)ov.remove();
-  // Force re-pull JSONBin (clear cached bin to force rediscovery)
+  window._p2autoRetried=false;
   portalShowConnecting(cid);
 }
 
