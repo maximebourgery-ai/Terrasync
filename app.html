@@ -8540,10 +8540,16 @@ async function authLogin(){
         try{localStorage.removeItem('admin_rl')}catch(e){}
         var session2={id:'admin2',username:user,role:'super',exp:Date.now()+8*60*60*1000};
         try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
+        var _wasPortalUrl2=window.location.search.includes('portal=');
         sbStartRealtime();
         if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
         setTimeout(function(){
           document.getElementById('auth-screen').classList.add('hidden');
+          // Idem profil 1 : forcer le dashboard admin
+          portalCid=null;portalMe=null;
+          showScr('admin');
+          try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
+          if(_wasPortalUrl2){jbPull(function(ok){if(ok){renderSb();if(S.clients.length)selClient(S.clients[0].id);}});}
           var badge=document.querySelector('.abadge');
           if(badge)badge.textContent='Admin — '+user;
         },600);
@@ -8573,6 +8579,11 @@ async function authLogin(){
   }
   // Succès profil 1 — réinitialiser le compteur
   try{localStorage.removeItem('admin_rl')}catch(e){}
+  // Profil 1 explicite : effacer tout résidu de session profil 2 en mémoire/storage
+  window._portalProfile=null;
+  try{sessionStorage.removeItem('terr_admin_profile');}catch(e){}
+  try{sessionStorage.removeItem('terr_sb_url_2');}catch(e){}
+  try{sessionStorage.removeItem('terr_sb_anon_2');}catch(e){}
   // Migration transparente : si hash legacy détecté → upgrade vers SHA-256
   if(admin.hash===legacyHash&&admin.hash!==hash){
     admin.hash=hash;
@@ -8584,8 +8595,16 @@ async function authLogin(){
   try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session))}catch(e){}
   var btn=document.querySelector('#auth-login-form .auth-btn');
   if(btn){btn.textContent='ACCES ACCORDE ✓';btn.style.background='#22c55e';}
+  // Mémoriser si l'URL contenait ?portal= avant de la nettoyer
+  var _wasPortalUrl=window.location.search.includes('portal=');
   setTimeout(function(){
     document.getElementById('auth-screen').classList.add('hidden');
+    // Toujours forcer le dashboard admin — évite l'affichage du portail client
+    // si l'admin s'est connecté depuis une URL ?portal=X (ex: lien partagé)
+    portalCid=null;portalMe=null;
+    showScr('admin');
+    try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
+    if(_wasPortalUrl){jbPull(function(ok){if(ok){renderSb();if(S.clients.length)selClient(S.clients[0].id);}});}
     var badge=document.querySelector('.abadge');
     if(badge)badge.textContent='Admin — '+admin.username;
   },600);
@@ -8865,6 +8884,9 @@ setTimeout(function(){
     jbInit();
     _loadAdminsFromSupabase();
   } else {
+    // Portail : charger les admins en arrière-plan pour que le formulaire
+    // admin (accessible derrière l'écran auth) soit prêt sans délai
+    _loadAdminsFromSupabase();
     // portal: just cache the bin ID if not already known
     // Bin ID loaded from baked data-b attribute (no list call needed)
     var bin=jbBin();
