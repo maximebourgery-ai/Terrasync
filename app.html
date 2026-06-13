@@ -7070,6 +7070,34 @@ function swPushData(_unused, immediate) {
   _sbDebounce = setTimeout(_doSync, immediate ? 0 : 800);
 }
 
+// ── Reconstruction partielle depuis portal_users ──────────────────────
+// Fallback ultime : si workspace vide ET pas de backup localStorage,
+// reconstruire la liste clients et utilisateurs depuis portal_users.
+// Les noms de clients sont perdus (remplacés par le cid), les outils
+// (web apps) non plus — mais les comptes utilisateurs sont récupérés.
+function _tryReconstructFromPortalUsers(cb){
+  sbFetch('GET','/rest/v1/portal_users?select=cid,id,name,email,status,tool_ids,last,must_change_password')
+  .then(function(rows){
+    if(!rows||!Array.isArray(rows)||!rows.length){cb&&cb(false);return;}
+    var clientMap={};
+    rows.forEach(function(r){
+      if(r.cid&&!clientMap[r.cid])clientMap[r.cid]={id:r.cid,name:r.cid,sector:'Autre',color:null,files:[]};
+    });
+    var clients=Object.values(clientMap);
+    if(!clients.length){cb&&cb(false);return;}
+    S.clients=clients;
+    S.users=rows.map(function(r){
+      return {id:r.id,cid:r.cid,name:r.name||'',email:r.email||'',
+              status:r.status||'pending',toolIds:r.tool_ids||[],
+              last:r.last||'',mustChangePassword:r.must_change_password||false};
+    });
+    persist();
+    toast(clients.length+' client(s) et '+rows.length+' utilisateur(s) reconstruits depuis Supabase. Les noms de clients et web apps doivent être renseignés manuellement.','warning');
+    renderSb();
+    cb&&cb(true);
+  }).catch(function(){cb&&cb(false);});
+}
+
 // ── jbPull : charge workspace depuis Supabase ─────────────────────────
 function jbPull(cb) {
   var _done=false;
@@ -7077,18 +7105,58 @@ function jbPull(cb) {
   sbFetch('GET', '/rest/v1/workspace?id=eq.'+_sbWsId+'&select=data')
   .then(function(rows){if(_done)return;clearTimeout(_t);_done=true;
     if(!rows || (rows && rows.error)) { cb&&cb(false); return; }
-    if(!Array.isArray(rows) || rows.length === 0) {
-      // Premier lancement : créer le workspace vide
-      var empty = {clients:[],tools:[],users:[],compta:[],creditCosts:{},creditCostsReal:{},simData:{}};
-      sbFetch('POST', '/rest/v1/workspace',
-        {id:_sbWsId, data:empty, updated_at:new Date().toISOString()}
-      ).then(function(){
-        S.clients=[];S.tools=[];S.users=[];S.compta=[];
-        jbSetStatus('ok','Espace créé ✓');
-        cb&&cb(true);
-      }).catch(function(){ cb&&cb(false); });
+
+    // ── Tentative de récupération depuis le cache localStorage ────────
+    // Si Supabase n'a pas de workspace (première fois) ou que la liste
+    // clients est vide (donnée écrasée par une race-condition), on cherche
+    // un backup dans terr1 avant de créer un espace vide.
+    var _supabaseEmpty = !Array.isArray(rows) || rows.length === 0 ||
+                         !(rows[0].data && rows[0].data.clients && rows[0].data.clients.length);
+    if(_supabaseEmpty){
+      var _lsBackup=null;try{_lsBackup=Store.get('terr1');}catch(e){}
+      if(_lsBackup&&_lsBackup.clients&&_lsBackup.clients.length){
+        // Backup localStorage trouvé → restaurer vers Supabase
+        S.clients         = _lsBackup.clients         || [];
+        S.tools           = _lsBackup.tools           || [];
+        S.users           = _lsBackup.users           || [];
+        S.compta          = _lsBackup.compta          || [];
+        S.creditCosts     = _lsBackup.creditCosts     || {};
+        S.creditCostsReal = _lsBackup.creditCostsReal || {};
+        S.simData         = _lsBackup.simData         || {};
+        S.tools.forEach(function(t){if(_toolHtmlCache[t.id])t.htmlContent=_toolHtmlCache[t.id];});
+        // Re-pousser vers Supabase (workspace vide → PATCH ou POST selon l'état)
+        var _restoreData={clients:S.clients,tools:S.tools.map(function(t){var r=Object.assign({},t);delete r.htmlContent;delete r.raw;return r;}),users:S.users,compta:S.compta,creditCosts:S.creditCosts,creditCostsReal:S.creditCostsReal,simData:S.simData};
+        var _restoreFn=function(){
+          sbFetch('PATCH','/rest/v1/workspace?id=eq.'+_sbWsId,{data:_restoreData,updated_at:new Date().toISOString()})
+          .then(function(d){if(!d||(Array.isArray(d)&&!d.length)){return sbFetch('POST','/rest/v1/workspace',{id:_sbWsId,data:_restoreData,updated_at:new Date().toISOString()});}})
+          .catch(function(){});
+        };
+        setTimeout(_restoreFn,200);
+        jbSetStatus('ok','Données restaurées depuis cache local ✓');
+        toast('Données restaurées depuis la sauvegarde locale ✓');
+        _loadToolContentIndex(function(){renderSb();if(activeC)renderDetail();cb&&cb(true);});
+        return;
+      }
+
+      if(!Array.isArray(rows) || rows.length === 0) {
+        // Premier lancement sans backup → créer workspace vide,
+        // puis tenter une reconstruction depuis portal_users
+        var empty = {clients:[],tools:[],users:[],compta:[],creditCosts:{},creditCostsReal:{},simData:{}};
+        sbFetch('POST', '/rest/v1/workspace',
+          {id:_sbWsId, data:empty, updated_at:new Date().toISOString()}
+        ).then(function(){
+          S.clients=[];S.tools=[];S.users=[];S.compta=[];
+          jbSetStatus('ok','Espace créé ✓');
+          _tryReconstructFromPortalUsers(function(){cb&&cb(true);});
+        }).catch(function(){ cb&&cb(false); });
+        return;
+      }
+      // Workspace vide en Supabase, pas de backup : tenter reconstruction
+      S.clients=[];S.tools=[];S.users=[];S.compta=[];
+      _tryReconstructFromPortalUsers(function(){cb&&cb(true);});
       return;
     }
+    // ── Chargement normal ─────────────────────────────────────────────
     var d = rows[0].data || {};
     S.clients          = d.clients||[];
     S.tools            = d.tools||[];
