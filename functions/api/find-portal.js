@@ -38,12 +38,14 @@ export async function onRequestPost({ request, env }) {
     // Chercher dans l'instance principale, puis dans celle du profil 2
     let user = await findUser(supabaseUrl, supabaseKey);
     let p2 = false;
+    let activeUrl = supabaseUrl;
+    let activeKey = supabaseKey;
     if (!user) {
       const url2 = (env.SUPABASE_URL_2 || '').replace(/\/+$/, '');
       const key2 = env.SUPABASE_SERVICE_KEY_2 || '';
       if (url2 && key2) {
         try { user = await findUser(url2, key2); } catch (e) { /* instance 2 indisponible — ignorer */ }
-        if (user) p2 = true;
+        if (user) { p2 = true; activeUrl = url2; activeKey = key2; }
       }
     }
 
@@ -63,7 +65,14 @@ export async function onRequestPost({ request, env }) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
     }
 
-    return json({ success: true, portalId: user.cid, userId: user.id, p2, message: 'Portail trouvé !' });
+    // Générer un token de session et le stocker en DB
+    const token = crypto.randomUUID();
+    await fetch(
+      `${activeUrl}/rest/v1/portal_users?id=eq.${encodeURIComponent(user.id)}`,
+      { method: 'PATCH', headers: { apikey: activeKey, Authorization: `Bearer ${activeKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ session_token: token }) }
+    ).catch(() => {});
+
+    return json({ success: true, portalId: user.cid, userId: user.id, token, p2, message: 'Portail trouvé !' });
   } catch (error) {
     return json({ success: false, error: 'Erreur serveur', details: error.message }, 500);
   }

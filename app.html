@@ -4702,12 +4702,13 @@ function _portalConnectFetch(cid){
     var c=S.clients.find(function(x){return x.id===cid});
     // Si le client est introuvable dans le profil actuel, basculer automatiquement
     // vers le Profil 2 (une seule tentative pour éviter les boucles infinies).
-    // Cela résout le cas où l'URL du portail ne contient plus le paramètre &p=2
-    // après une migration de domaine, mais que les données sont bien en Profil 2.
-    if(!c&&!_isProfile2()&&!window._p2autoRetried){
+    // Si le client n'est pas trouvé dans le profil actuel, essayer l'autre profil
+    // (fonctionne dans les deux sens : P1→P2 et P2→P1).
+    if(!c&&!window._p2autoRetried){
       window._p2autoRetried=true;
-      window._portalProfile='2';
-      try{localStorage.setItem('terr_pp_'+cid,'2')}catch(e){}
+      var _toggledProfile=_isProfile2()?null:'2';
+      window._portalProfile=_toggledProfile;
+      if(_toggledProfile==='2'){try{localStorage.setItem('terr_pp_'+cid,'2')}catch(e){}}
       _portalConnectFetch(cid);return;
     }
     if(!ok){
@@ -4980,7 +4981,36 @@ async function _doLoginCheck(e, p){
   var byEmail=null;
   for(var i=0;i<users.length;i++){if(users[i].email===e){byEmail=users[i];break;}}
   if(!byEmail){
-    err.textContent='Aucun compte avec cet email. Creez un compte.';err.className='p-err on';return;
+    // Fallback : interroger l'API find-portal (gère les profils croisés et les problèmes de sync)
+    err.textContent='Vérification en cours…';err.className='p-err on';
+    try{
+      var _fbResp=await fetch('/api/find-portal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
+      var _fbRes=await _fbResp.json();
+      if(_fbRes.success&&_fbRes.portalId===portalCid&&_fbRes.userId){
+        var _rlKey2='prl_'+portalCid;try{localStorage.removeItem(_rlKey2)}catch(_){}
+        if(_fbRes.p2&&!_isProfile2())window._portalProfile='2';
+        try{localStorage.setItem('ps_'+portalCid,JSON.stringify({uid:_fbRes.userId,token:_fbRes.token||'',exp:Date.now()+2*60*60*1000}))}catch(_){}
+        portalLoadUsers(portalCid,function(){
+          var _loadedUsers=portalGetUsers(portalCid);
+          var _ux=_loadedUsers.find(function(x){return x.id===_fbRes.userId;});
+          if(_ux){
+            if(_ux.mustChangePassword){portalMe=_ux;showForcedPasswordChange();return;}
+            portalMe=_ux;_ux.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,_loadedUsers);
+          }
+          showPortalApp();
+        });
+        return;
+      }
+      if(_fbRes.message&&_fbRes.message.toLowerCase().includes('passe')){
+        var _rl2=null;try{_rl2=JSON.parse(localStorage.getItem(_rlKey)||'null')}catch(_){}
+        var _cnt2=((_rl2&&_rl2.count)||0)+1;
+        var _lk2=_cnt2>=5?{count:_cnt2,until:Date.now()+15*60*1000}:{count:_cnt2};
+        try{localStorage.setItem(_rlKey,JSON.stringify(_lk2))}catch(_){}
+        err.textContent=_cnt2>=5?'Compte verrouillé 15 min. Trop de tentatives.':'Mot de passe incorrect.';
+        err.className='p-err on';return;
+      }
+    }catch(_){}
+    err.textContent='Aucun compte avec cet email. Créez un compte.';err.className='p-err on';return;
   }
   if(byEmail.status==='pending'){err.textContent='Compte en attente de validation par votre administrateur.';err.className='p-err on';return;}
   var pwdOk=await verifyPassword(p,byEmail.pwd);
@@ -5550,6 +5580,7 @@ function portalAddFile(cid,file){
   }
   console.log('[ADD_FILE] Sauvegarde finale via portalSaveFiles...');
   portalSaveFiles(cid,files);
+  window._filesDirty=true;
   setTimeout(updateCreditDisplay,100);
   console.log('[ADD_FILE] Fichier ajouté avec succès !');
   return file;
@@ -5952,6 +5983,13 @@ function _doRenderPortalApp(c){
 }
 
 function showPortalSection(sec){
+  // Si des fichiers ont été ajoutés depuis le dernier rendu, rafraîchir avant d'afficher
+  if(sec==='files'&&window._filesDirty&&portalCid&&portalMe){
+    window._filesDirty=false;
+    renderPortalApp();
+    setTimeout(function(){showPortalSection('files');},50);
+    return;
+  }
   var tools=document.getElementById('psec-tools');
   var files=document.getElementById('psec-files');
   var tbT=document.getElementById('ptab-tools');
@@ -7722,10 +7760,11 @@ function _processToolCapture(fname, mime, dataUrl){
       var sf = document.getElementById('psec-files');
       if(sf && sf.style.display !== 'none'){
         console.log('[CAPTURE] Refresh de Mes fichiers...');
+        window._filesDirty=false;
         renderPortalApp(); setTimeout(function(){ showPortalSection('files'); }, 50);
-      } else {
-        console.log('[CAPTURE] Section fichiers non visible, pas de refresh');
       }
+      // Si la section fichiers n'est pas visible, _filesDirty=true (d\u00e9j\u00e0 mis par portalAddFile)
+      // le refresh se fera automatiquement quand l'utilisateur naviguera vers "Mes fichiers"
     }, 400);
   } else {
     console.warn('[CAPTURE] portalCid ou portalMe manquant, fichier non sauvegardé');
