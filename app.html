@@ -4704,8 +4704,9 @@ function _portalConnectFetch(cid){
     // vers le Profil 2 (une seule tentative pour éviter les boucles infinies).
     // Cela résout le cas où l'URL du portail ne contient plus le paramètre &p=2
     // après une migration de domaine, mais que les données sont bien en Profil 2.
-    if(!c&&!_isProfile2()&&!window._p2autoRetried){
-      window._p2autoRetried=true;
+    if(!c&&!_isProfile2()&&!(window._p2autoRetried&&window._p2autoRetried[cid])){
+      if(!window._p2autoRetried)window._p2autoRetried={};
+      window._p2autoRetried[cid]=true;
       window._portalProfile='2';
       try{localStorage.setItem('terr_pp_'+cid,'2')}catch(e){}
       _portalConnectFetch(cid);return;
@@ -4793,7 +4794,7 @@ function portalShowOffline(cid, reason){
 function portalRetryConnect(cid){
   // Reset UI and retry
   var ov=document.getElementById('portal-conn-overlay');if(ov)ov.remove();
-  window._p2autoRetried=false;
+  if(window._p2autoRetried)delete window._p2autoRetried[cid];
   portalShowConnecting(cid);
 }
 
@@ -7311,12 +7312,15 @@ function sbStartRealtime() {
   }
   if(!sbUrl || !sbAnon) return;
   var wsUrl = sbUrl.replace(/^https?/,'wss') + '/realtime/v1/websocket?apikey='+sbAnon;
-  if(_sbRealtime) { try{_sbRealtime.close();}catch(e){} _sbRealtime=null; }
+  // Marquer l'ancienne connexion comme périmée AVANT de la fermer.
+  // Sans ce flag, ws.onclose déclencherait setTimeout(sbStartRealtime) vers le mauvais profil.
+  if(_sbRealtime) { _sbRealtime._stale=true; try{_sbRealtime.close();}catch(e){} _sbRealtime=null; }
   try {
     var ws = new WebSocket(wsUrl);
     _sbRealtime = ws;
     var _ping;
     ws.onopen = function(){
+      if(ws._stale || ws!==_sbRealtime) return;
       ws.send(JSON.stringify({
         topic:'realtime:public:workspace:id=eq.'+_sbWsId,
         event:'phx_join',
@@ -7325,10 +7329,13 @@ function sbStartRealtime() {
       }));
       // Heartbeat toutes les 25s (Supabase ferme après 30s sans activité)
       _ping = setInterval(function(){
-        if(ws.readyState===1) ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:'hb'}));
+        if(ws._stale || ws.readyState!==1){ clearInterval(_ping); return; }
+        ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:'hb'}));
       }, 25000);
     };
     ws.onmessage = function(ev){
+      // Ignorer les messages d'un socket périmé (profil précédent)
+      if(ws._stale || ws!==_sbRealtime) return;
       try {
         var msg = JSON.parse(ev.data);
         var rec = msg.payload&&msg.payload.data&&msg.payload.data.record;
@@ -7359,10 +7366,12 @@ function sbStartRealtime() {
         }
       } catch(ex){}
     };
-    ws.onerror = function(){ clearInterval(_ping); _sbRealtime=null; };
+    ws.onerror = function(){ clearInterval(_ping); if(ws===_sbRealtime)_sbRealtime=null; };
     ws.onclose = function(){
-      clearInterval(_ping); _sbRealtime=null;
-      setTimeout(sbStartRealtime, 5000);
+      clearInterval(_ping);
+      if(ws===_sbRealtime) _sbRealtime=null;
+      // Ne pas reconnecter un socket périmé (évite les boucles de reconnexion inter-profils)
+      if(!ws._stale) setTimeout(sbStartRealtime, 5000);
     };
     // iOS Safari : visibilitychange pour reconnecter après mise en veille
     if(!document._sbVisHandler){
@@ -8913,13 +8922,32 @@ var _isPortalVisit = window.location.search.indexOf('portal=') > -1;
 if(_isPortalVisit){
   // Client portal mode: bypass admin auth entirely
   document.getElementById('auth-screen').classList.add('hidden');
-} else if(!authIsLoggedIn()){
-  // Admin mode, not logged in: show auth screen
 } else {
-  // Admin mode, logged in: restore session
-  document.getElementById('auth-screen').classList.add('hidden');
-  var _session=null;try{_session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
-  if(_session){var badge=document.querySelector('.abadge');if(badge)badge.textContent='Admin — '+_session.username;}
+  // ── Restauration du flag Profil 2 AVANT tout appel à _isProfile2() ───
+  // sessionStorage est vidé à la fermeture de l'onglet. Si une session
+  // admin2 est encore valide en localStorage, on restaure le flag ici
+  // pour que _isProfile2() retourne true dès jbInit()/jbPull().
+  // Note : terr_sb_url_2 / terr_sb_anon_2 ne sont pas restaurés (Realtime
+  // désactivé jusqu'à reconnexion), mais sbFetch() fonctionne sans eux.
+  var _earlySession=null;
+  try{_earlySession=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null');}catch(e){}
+  if(_earlySession&&_earlySession.id==='admin2'&&_earlySession.exp>Date.now()){
+    try{sessionStorage.setItem('terr_admin_profile','2');}catch(e){}
+  }
+
+  if(!authIsLoggedIn()){
+    // Admin mode, not logged in: show auth screen
+  } else {
+    // Admin mode, logged in: restore session display
+    document.getElementById('auth-screen').classList.add('hidden');
+    var _session=null;try{_session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null');}catch(e){}
+    if(_session){
+      var _profileNum=_isProfile2()?2:1;
+      var badge=document.querySelector('.abadge');
+      if(badge)badge.textContent='Admin — '+_session.username+' (Base '+_profileNum+')';
+      _showProfileBadge(_profileNum);
+    }
+  }
 }
 
 
