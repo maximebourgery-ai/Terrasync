@@ -8608,18 +8608,21 @@ async function authLogin(){
         try{localStorage.removeItem('admin_rl')}catch(e){}
         var session2={id:'admin2',username:user,role:'super',exp:Date.now()+8*60*60*1000};
         try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
-        var _wasPortalUrl2=window.location.search.includes('portal=');
         sbStartRealtime();
         if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
         setTimeout(function(){
           document.getElementById('auth-screen').classList.add('hidden');
-          // Idem profil 1 : forcer le dashboard admin
           portalCid=null;portalMe=null;
           showScr('admin');
           try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
-          if(_wasPortalUrl2){jbPull(function(ok){if(ok){renderSb();if(S.clients.length)selClient(S.clients[0].id);}});}
+          // Toujours recharger le workspace depuis la Base 2 après login —
+          // jbInit() au démarrage avait chargé la Base 1 (profil par défaut).
+          jbPull(function(ok){
+            if(ok){renderSb();if(S.clients.length&&!activeC)selClient(S.clients[0].id);}
+          });
           var badge=document.querySelector('.abadge');
-          if(badge)badge.textContent='Admin — '+user;
+          if(badge)badge.textContent='Admin — '+user+' (Base 2)';
+          _showProfileBadge(2);
         },600);
       }else{
         var _ac=((_arl&&_arl.count)||0)+1;
@@ -8663,19 +8666,38 @@ async function authLogin(){
   try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session))}catch(e){}
   var btn=document.querySelector('#auth-login-form .auth-btn');
   if(btn){btn.textContent='ACCES ACCORDE ✓';btn.style.background='#22c55e';}
-  // Mémoriser si l'URL contenait ?portal= avant de la nettoyer
-  var _wasPortalUrl=window.location.search.includes('portal=');
   setTimeout(function(){
     document.getElementById('auth-screen').classList.add('hidden');
-    // Toujours forcer le dashboard admin — évite l'affichage du portail client
-    // si l'admin s'est connecté depuis une URL ?portal=X (ex: lien partagé)
     portalCid=null;portalMe=null;
     showScr('admin');
     try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
-    if(_wasPortalUrl){jbPull(function(ok){if(ok){renderSb();if(S.clients.length)selClient(S.clients[0].id);}});}
+    // Recharger le workspace depuis la Base 1 pour s'assurer que les données
+    // affichées correspondent bien au profil actif (pas un résidu d'une session
+    // Profil 2 précédente dans le même onglet).
+    jbPull(function(ok){
+      if(ok){renderSb();if(S.clients.length&&!activeC)selClient(S.clients[0].id);}
+    });
     var badge=document.querySelector('.abadge');
-    if(badge)badge.textContent='Admin — '+admin.username;
+    if(badge)badge.textContent='Admin — '+admin.username+' (Base 1)';
+    _showProfileBadge(1);
   },600);
+}
+
+// Affiche une pastille colorée dans la barre admin pour indiquer la base active.
+// Rouge = Base 2 (Maxime), vert = Base 1 (admin). Permet de savoir sans console
+// sur quel Supabase on écrit, et de détecter immédiatement un mauvais routage.
+function _showProfileBadge(profile){
+  var existing=document.getElementById('_profile-badge');
+  if(existing)existing.remove();
+  var bar=document.querySelector('.abar')||document.querySelector('#admin-bar');
+  if(!bar)return;
+  var el=document.createElement('span');
+  el.id='_profile-badge';
+  el.textContent=profile===2?'Base 2':'Base 1';
+  el.style.cssText='display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-left:8px;'
+    +(profile===2?'background:#dc2626;color:#fff;':'background:#16a34a;color:#fff;');
+  var abadge=bar.querySelector('.abadge');
+  if(abadge)abadge.after(el);else bar.prepend(el);
 }
 
 function authLogout(){
