@@ -1478,14 +1478,32 @@ function approveUser(uid){
 function delUser(uid){
   var u=S.users.find(function(x){return x.id===uid});
   if(!u)return;
-  // Supprimer de Supabase portal_users → la personne ne peut plus se reconnecter
-  sbFetch('DELETE','/rest/v1/portal_users?email=eq.'+encodeURIComponent(u.email)+'&cid=eq.'+encodeURIComponent(u.cid)).catch(function(){});
-  // Supprimer du localStorage → syncPortalAccounts ne recrée pas l'utilisateur au prochain chargement
-  var pu=portalGetUsers(u.cid);
-  portalSaveUsers(u.cid,pu.filter(function(x){return x.id!==uid}));
-  // Supprimer de la mémoire et sauvegarder le workspace
-  S.users=S.users.filter(function(x){return x.id!==uid});
-  persist();renderDetail();renderKanban();toast('Compte supprime');
+  if(!confirm('Supprimer DEFINITIVEMENT le compte de "'+(u.name||u.email||'cet utilisateur')+'" ?\n\nCette action est irreversible : l\'utilisateur ne pourra plus se connecter au portail.'))return;
+  // Normaliser l'email comme au login (find-portal.js utilise email.toLowerCase())
+  // sinon une difference de casse empeche la suppression de la ligne portal_users.
+  var email=(u.email||'').trim().toLowerCase();
+  // 1. Supprimer de Supabase portal_users (source de verite du login) — on ATTEND le resultat.
+  //    Tant que la ligne n'est pas supprimee cote serveur, la personne peut encore se connecter,
+  //    donc on ne retire l'utilisateur de l'admin qu'en cas de succes confirme.
+  sbFetch('DELETE','/rest/v1/portal_users?email=eq.'+encodeURIComponent(email)+'&cid=eq.'+encodeURIComponent(u.cid))
+  .then(function(res){
+    // PostgREST renvoie un objet {code/message/error} en cas d'echec, un tableau sinon.
+    if(res&&!Array.isArray(res)&&(res.error||res.message||res.code)){
+      throw new Error(res.message||res.error||res.code);
+    }
+    // 2. Supprimer du localStorage (par id ET par email) → syncPortalAccounts ne le recree pas.
+    var pu=portalGetUsers(u.cid);
+    portalSaveUsers(u.cid,pu.filter(function(x){
+      return x.id!==uid && (x.email||'').trim().toLowerCase()!==email;
+    }));
+    // 3. Supprimer de la memoire et sauvegarder le workspace.
+    S.users=S.users.filter(function(x){return x.id!==uid});
+    persist();renderDetail();renderKanban();
+    toast('Compte supprime definitivement');
+  })
+  .catch(function(e){
+    toast('Echec de la suppression — verifiez la connexion et reessayez',false);
+  });
 }
 
 // FILES
