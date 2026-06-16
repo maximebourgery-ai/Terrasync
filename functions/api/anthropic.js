@@ -26,11 +26,20 @@ async function sbPatch(sbUrl, sbKey, path, payload) {
 // Verify portal session token and deduct credits atomically (read-modify-write).
 // Returns { ok: true } or { ok: false, error: string, status: number }
 async function verifyAndDeductCredits(sbUrl, sbKey, { uid, token, cid, cost }) {
-  // 1. Verify session token
+  // 1. Verify session token (statut vérifié ensuite : approved OU essai 24h actif)
   const users = await sbGet(sbUrl, sbKey,
-    `/rest/v1/portal_users?id=eq.${encodeURIComponent(uid)}&session_token=eq.${encodeURIComponent(token)}&status=eq.approved&select=id&limit=1`
+    `/rest/v1/portal_users?id=eq.${encodeURIComponent(uid)}&session_token=eq.${encodeURIComponent(token)}&select=id,status,created_at&limit=1`
   );
   if (!users || !users.length) return { ok: false, error: 'Session invalide ou expirée.', status: 401 };
+
+  // Contrôle d'accès : approved = permanent ; pending = essai 24h depuis created_at
+  const acct = users[0];
+  const TRIAL_MS = 24 * 60 * 60 * 1000;
+  const trialActive = acct.status === 'pending' && acct.created_at &&
+    (Date.now() - new Date(acct.created_at).getTime()) < TRIAL_MS;
+  if (acct.status !== 'approved' && !trialActive) {
+    return { ok: false, error: 'Votre période d\'essai de 24h est terminée. En attente de validation par votre administrateur.', status: 403 };
+  }
 
   if (!cost || cost <= 0) return { ok: true };
 

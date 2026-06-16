@@ -2250,7 +2250,37 @@ function approveUser(uid){
   renderDetail();renderKanban();
   toast('"'+u.name+'" approuve');
 }
-function delUser(uid){S.users=S.users.filter(function(u){return u.id!==uid});persist();renderDetail();renderKanban();toast('Compte supprime')}
+function delUser(uid){
+  var u=S.users.find(function(x){return x.id===uid});
+  if(!u){S.users=S.users.filter(function(x){return x.id!==uid});persist();renderDetail();renderKanban();return;}
+  if(!confirm('Supprimer DEFINITIVEMENT le compte de "'+(u.name||u.email||'cet utilisateur')+'" ?\n\nL\'utilisateur ne pourra plus se connecter au portail. Action irreversible.'))return;
+  // Normaliser l'email comme au login (find-portal.js + verifyAndDeductCredits
+  // recherchent en minuscules) pour cibler la bonne ligne portal_users.
+  var email=(u.email||'').trim().toLowerCase();
+  // Supprimer DEFINITIVEMENT de portal_users (la SEULE source de verite du
+  // login) — on ATTEND la confirmation serveur avant de retirer le compte de
+  // l'admin. On supprime par id ET par email+cid pour couvrir les anciennes
+  // lignes dont l'id divergerait du workspace.
+  var delById=sbFetch('DELETE','/rest/v1/portal_users?id=eq.'+encodeURIComponent(uid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId));
+  var delByEmail=email?sbFetch('DELETE','/rest/v1/portal_users?email=eq.'+encodeURIComponent(email)+'&cid=eq.'+encodeURIComponent(u.cid)+'&workspace_id=eq.'+encodeURIComponent(_sbWsId)):Promise.resolve(null);
+  Promise.all([delById,delByEmail]).then(function(res){
+    res.forEach(function(r){ if(r&&!Array.isArray(r)&&(r.error||r.message||r.code)) throw new Error(r.message||r.error||r.code); });
+    // Purger les caches portail (memoire + localStorage) pour que l'utilisateur
+    // ne soit pas recree par syncPortalAccounts au prochain chargement.
+    if(_portalUsersCache[u.cid]) _portalUsersCache[u.cid]=_portalUsersCache[u.cid].filter(function(x){return x.id!==uid&&(x.email||'').trim().toLowerCase()!==email;});
+    try{
+      var lsKey='terr_'+u.cid+'_u';
+      var ls=JSON.parse(localStorage.getItem(lsKey)||'[]');
+      localStorage.setItem(lsKey,JSON.stringify(ls.filter(function(x){return x.id!==uid&&(x.email||'').trim().toLowerCase()!==email;})));
+    }catch(e){}
+    // Retirer du workspace (memoire + Supabase)
+    S.users=S.users.filter(function(x){return x.id!==uid});
+    persist();renderDetail();renderKanban();
+    toast('Compte supprime definitivement');
+  }).catch(function(){
+    toast('Echec de la suppression — verifiez la connexion et reessayez',false);
+  });
+}
 
 // FILES
 function dzOv(e,id){e.preventDefault();var el=$('dz-'+id);if(el)el.classList.add('over')}
@@ -2341,6 +2371,10 @@ function renderKanban(){
       var clientTools=S.tools.filter(function(t){return t.cid===u.cid});
       h+='<div class="kb-card"><div class="kb-card-name">'+u.name+'</div><div class="kb-card-email">'+u.email+'</div>';
       h+='<div style="font-size:10px;color:var(--am)">Client: '+(c?c.name:'?')+' - '+(u.last||'?')+'</div>';
+      if(u.status==='pending'){
+        var _ta=_portalTrialActive(u.createdAt||u.created_at);
+        h+='<div style="font-size:10px;margin-top:3px;font-weight:700;color:'+(_ta?'#3a5a28':'#b45309')+'">'+(_ta?'⏳ Essai 24h actif (accès immédiat)':'⛔ Essai 24h expiré — à valider')+'</div>';
+      }
       if(clientTools.length){
         h+='<div style="font-size:10px;font-weight:600;color:var(--am);margin:6px 0 4px;text-transform:uppercase;letter-spacing:.5px">Outils assignes</div>';
         h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">';
@@ -4744,9 +4778,11 @@ function _portalInitAfterLoad(cid,c){
   }
   if(_sess&&_sess.exp>Date.now()&&_sess.uid&&_sess.token){
     // Verify session token against DB to prevent forgery
-    sbFetch('GET','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_sess.uid)+'&session_token=eq.'+encodeURIComponent(_sess.token)+'&status=eq.approved&select=id&limit=1').then(function(rows){
+    sbFetch('GET','/rest/v1/portal_users?id=eq.'+encodeURIComponent(_sess.uid)+'&session_token=eq.'+encodeURIComponent(_sess.token)+'&select=id,status,created_at&limit=1').then(function(rows){
       if(!rows||!rows.length){showPortalTab('l');return;}
-      var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&x.status==='approved'&&!x.mustChangePassword;});
+      // Vérifier l'accès (approuvé ou essai 24h actif) sur la ligne DB faisant foi
+      if(!_portalUserHasAccess(rows[0])){showPortalTab('l');return;}
+      var _u=portalGetUsers(cid).find(function(x){return x.id===_sess.uid&&_portalUserHasAccess(x)&&!x.mustChangePassword;});
       if(!_u){showPortalTab('l');return;}
       portalMe=_u;
 
@@ -5012,7 +5048,7 @@ async function _doLoginCheck(e, p){
     }catch(_){}
     err.textContent='Aucun compte avec cet email. Créez un compte.';err.className='p-err on';return;
   }
-  if(byEmail.status==='pending'){err.textContent='Compte en attente de validation par votre administrateur.';err.className='p-err on';return;}
+  if(!_portalUserHasAccess(byEmail)){err.textContent=_portalAccessDeniedMsg(byEmail);err.className='p-err on';return;}
   var pwdOk=await verifyPassword(p,byEmail.pwd);
   if(!pwdOk){
     // Incrémenter le compteur d'échecs
@@ -5037,7 +5073,7 @@ async function _doLoginCheck(e, p){
       if(sx){sx.pwd=h;persist();}
     });
   }
-  if(u.status==='pending'){err.textContent='Compte en attente de validation.';err.className='p-err on';return}
+  if(!_portalUserHasAccess(u)){err.textContent=_portalAccessDeniedMsg(u);err.className='p-err on';return}
   if(u.mustChangePassword){
     portalMe=u;u.last=new Date().toLocaleString('fr-FR');portalSaveUsers(portalCid,users);
     showForcedPasswordChange();return;
@@ -5236,19 +5272,21 @@ function doReg(){
   if(!emailRegex.test(e)){err.textContent='Adresse email invalide.';err.className='p-err on';return}
   var users=portalGetUsers(portalCid);
   for(var i=0;i<users.length;i++){if(users[i].email===e){err.textContent='Email deja utilise. Connectez-vous.';err.className='p-err on';return}}
-  var nu={id:uid(),name:n,email:e,pwd:p,last:new Date().toLocaleString('fr-FR'),status:'pending',toolIds:[]};
+  var nowIso=new Date().toISOString();
+  var nu={id:uid(),name:n,email:e,pwd:p,cid:portalCid,last:new Date().toLocaleString('fr-FR'),status:'pending',toolIds:[],createdAt:nowIso};
   users.push(nu);portalSaveUsers(portalCid,users);
-  if(!S.users.find(function(u){return u.email===e&&u.cid===portalCid})){S.users.push({id:nu.id,name:n,email:e,pwd:p,last:nu.last,cid:portalCid,status:'pending',toolIds:[]});persist()}
+  if(!S.users.find(function(u){return u.email===e&&u.cid===portalCid})){S.users.push({id:nu.id,name:n,email:e,pwd:p,last:nu.last,cid:portalCid,status:'pending',toolIds:[],createdAt:nowIso});persist()}
   ['p-rn','p-re','p-rpp','p-rp','p-rp2'].forEach(function(id){var el=$(id);if(el)el.value=''});
-  // Send welcome email
-  var c=S.clients.find(function(x){return x.id===portalCid});
-  var clientName=c?c.name:'Votre espace';
-  var btn=$('p-btn-reg');if(btn){btn.textContent='Envoi...';btn.disabled=true;}
-  portalSendEmail('reg',{to_name:n,to_email:e,client_name:clientName},function(ok){
-    if(btn){btn.textContent='CREER MON COMPTE →';btn.disabled=false;}
-    inf.innerHTML='✅ Compte créé ! '+(ok?'Email envoyé à <strong>'+e+'</strong>.':'Votre administrateur va valider votre accès.');
-    inf.className='p-info on';
-  });
+  // Email de bienvenue en arrière-plan (n'impacte pas l'accès)
+  var c2=S.clients.find(function(x){return x.id===portalCid});
+  var clientName=c2?c2.name:'Votre espace';
+  portalSendEmail('reg',{to_name:n,to_email:e,client_name:clientName},function(){});
+  // Accès IMMÉDIAT : essai gratuit 24h sans validation admin. On connecte
+  // directement l'utilisateur. Le compte reste 'pending' jusqu'à une
+  // éventuelle validation admin (qui le rend alors permanent) ; sans
+  // validation, l'accès est suspendu automatiquement après 24h.
+  toast('Bienvenue ! Accès gratuit pendant 24h.');
+  _doLoginCheck(e,p);
 }
 
 function doForgot(){
@@ -6737,6 +6775,30 @@ function parseUrl(){
 }
 
 // SYNC accounts from portal
+// ── Accès portail : approuvé (permanent) ou essai gratuit 24h ─────────
+// Un compte fraîchement créé (status 'pending') a accès immédiatement pendant
+// 24h. Si l'admin l'approuve avant la fin, l'accès devient permanent. Sinon
+// l'accès est suspendu jusqu'à validation. 'revoked' = jamais d'accès.
+var PORTAL_TRIAL_MS = 24 * 60 * 60 * 1000;
+function _portalTrialActive(createdAt){
+  if(!createdAt) return false;
+  var t = new Date(createdAt).getTime();
+  if(isNaN(t)) return false;
+  return (Date.now() - t) < PORTAL_TRIAL_MS;
+}
+function _portalUserHasAccess(u){
+  if(!u) return false;
+  if(u.status === 'approved') return true;
+  if(u.status === 'pending') return _portalTrialActive(u.createdAt || u.created_at);
+  return false; // revoked
+}
+function _portalAccessDeniedMsg(u){
+  if(!u) return 'Aucun compte avec cet email. Créez un compte.';
+  if(u.status === 'revoked') return 'Votre accès a été révoqué. Contactez votre administrateur.';
+  if(u.status === 'pending') return 'Votre période d\'essai de 24h est terminée. En attente de validation par votre administrateur.';
+  return 'Compte en attente de validation par votre administrateur.';
+}
+
 // ── Utilisateurs portail — Supabase portal_users ──────────────────────
 // Cache local pour accès synchrone (lu depuis la DB au login)
 var _portalUsersCache = {};
@@ -6776,6 +6838,7 @@ function portalLoadUsers(cid, cb){
     var users = rows.map(function(r){
       return {id:r.id,cid:r.cid,name:r.name,email:r.email,pwd:r.pwd,
         status:r.status,toolIds:r.tool_ids||[],last:r.last||'',
+        createdAt:r.created_at||'',
         mustChangePassword:r.must_change_password||false};
     });
     _portalUsersCache[cid] = users;
@@ -7235,10 +7298,52 @@ function jbPull(cb) {
         if(currentTab==='compta') renderCompta();
         if(currentTab==='sim') setTimeout(function(){showSimTab('global');},100);
       }
+      // Aligner les statuts de comptes sur portal_users (évite les reverts
+      // d'approbation dus à un écrasement concurrent du blob workspace).
+      _reconcileUsersFromPortal();
       cb&&cb(true);
     });
   })
   .catch(function(){if(!_done){clearTimeout(_t);_done=true;cb&&cb(false);}});
+}
+
+// ── Réconciliation des comptes depuis portal_users ────────────────────
+// portal_users est la source de vérité PAR UTILISATEUR du statut de compte
+// (approuvé / en attente / révoqué) et des outils assignés. Le blob
+// workspace.data.users peut, lui, être écrasé par une écriture concurrente
+// (ex. déduction de crédits côté serveur qui réécrit tout le blob avec un
+// snapshot antérieur), ce qui faisait "réapparaître" en attente un
+// utilisateur qu'on venait d'approuver — obligeant à le ré-approuver.
+// On ré-aligne donc S.users sur portal_users après chaque chargement.
+// On NE persiste PAS ici : corriger l'affichage en mémoire suffit, et éviter
+// un PATCH du blob empêche d'écraser des crédits modifiés entre-temps. La
+// prochaine action admin re-sauvera l'état correct.
+function _reconcileUsersFromPortal(cb){
+  if(portalCid){cb&&cb(false);return;} // admin uniquement
+  if(!Store.get('terr_sb_url')){cb&&cb(false);return;}
+  sbFetch('GET','/rest/v1/portal_users?workspace_id=eq.'+encodeURIComponent(_sbWsId)+'&select=id,cid,name,email,status,tool_ids,last,created_at,must_change_password')
+  .then(function(rows){
+    if(!Array.isArray(rows)){cb&&cb(false);return;}
+    rows.forEach(function(r){
+      var em=(r.email||'').toLowerCase();
+      var u=S.users.find(function(x){return x.id===r.id||((x.email||'').toLowerCase()===em&&x.cid===r.cid);});
+      if(u){
+        if(r.status)u.status=r.status;
+        u.toolIds=r.tool_ids||u.toolIds||[];
+        if(r.last)u.last=r.last;
+        u.createdAt=r.created_at||u.createdAt||'';
+        u.mustChangePassword=!!r.must_change_password;
+      } else {
+        // Présent dans portal_users mais absent du blob → l'ajouter pour que
+        // l'admin le voie (il peut se connecter, donc il doit être gérable).
+        S.users.push({id:r.id,cid:r.cid,name:r.name||'',email:r.email||'',pwd:'',
+          status:r.status||'pending',toolIds:r.tool_ids||[],last:r.last||'',
+          createdAt:r.created_at||'',mustChangePassword:!!r.must_change_password});
+      }
+    });
+    renderKanban();
+    cb&&cb(true);
+  }).catch(function(){cb&&cb(false);});
 }
 
 // ── Tool HTML : charger à la demande depuis tool_content ─────────────
@@ -7392,6 +7497,9 @@ function sbStartRealtime() {
           jbSetStatus('ok','\u25cf Live');
           // Admin → tout rafraîchir
           _refreshAdmin({prices:true,costs:true});
+          // Le blob reçu via Realtime peut contenir un statut de compte périmé
+          // (écriture concurrente). Réaligner les comptes depuis portal_users.
+          if(!portalCid) _reconcileUsersFromPortal();
           // Portail client si actif → re-render les cards avec les nouveaux prix
           if(portalCid&&portalMe) renderPortalApp();
         }

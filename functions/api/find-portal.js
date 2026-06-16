@@ -25,9 +25,12 @@ export async function onRequestPost({ request, env }) {
     const supabaseKey = env.SUPABASE_SERVICE_KEY || '';
     if (!supabaseUrl || !supabaseKey) return json({ error: 'Supabase credentials manquants.' }, 503);
 
+    // On accepte les comptes "approved" (permanents) ET "pending" (essai 24h).
+    // order=status.asc place "approved" avant "pending" si le même email existe
+    // pour plusieurs clients, pour donner la priorité au compte permanent.
     const findUser = async (url, key) => {
       const resp = await fetch(
-        `${url}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=eq.approved&select=id,cid,pwd&limit=1`,
+        `${url}/rest/v1/portal_users?email=eq.${encodeURIComponent(email.toLowerCase())}&status=in.(approved,pending)&order=status.asc&select=id,cid,pwd,status,created_at&limit=1`,
         { headers: { apikey: key, Authorization: `Bearer ${key}` } }
       );
       if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
@@ -63,6 +66,16 @@ export async function onRequestPost({ request, env }) {
     const pwdOk = await verifyPassword(password, user.pwd);
     if (!pwdOk) {
       return json({ success: false, message: 'Mot de passe incorrect' }, 401);
+    }
+
+    // Contrôle d'accès : "approved" = permanent ; "pending" = essai gratuit 24h
+    // à compter de created_at. Au-delà, l'accès est suspendu jusqu'à validation
+    // par l'administrateur (qui rend alors le compte permanent).
+    const TRIAL_MS = 24 * 60 * 60 * 1000;
+    const trialActive = user.status === 'pending' && user.created_at &&
+      (Date.now() - new Date(user.created_at).getTime()) < TRIAL_MS;
+    if (user.status !== 'approved' && !trialActive) {
+      return json({ success: false, message: 'Votre période d\'essai de 24h est terminée. En attente de validation par votre administrateur.' }, 403);
     }
 
     // Générer un token de session et le stocker en DB
