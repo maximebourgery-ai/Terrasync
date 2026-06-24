@@ -8647,21 +8647,10 @@ async function authLogin(){
         try{localStorage.removeItem('admin_rl')}catch(e){}
         var session2={id:'admin2',username:user,role:'super',exp:Date.now()+8*60*60*1000};
         try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
-        sbStartRealtime();
+        try{sessionStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
         if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
         setTimeout(function(){
-          document.getElementById('auth-screen').classList.add('hidden');
-          portalCid=null;portalMe=null;
-          showScr('admin');
-          try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
-          // Toujours recharger le workspace depuis la Base 2 après login —
-          // jbInit() au démarrage avait chargé la Base 1 (profil par défaut).
-          jbPull(function(ok){
-            if(ok){renderSb();if(S.clients.length&&!activeC)selClient(S.clients[0].id);}
-          });
-          var badge=document.querySelector('.abadge');
-          if(badge)badge.textContent='Admin — '+user+' (Base 2)';
-          _showProfileBadge(2);
+          window.location.href='admin-platform.html';
         },600);
       }else{
         var _ac=((_arl&&_arl.count)||0)+1;
