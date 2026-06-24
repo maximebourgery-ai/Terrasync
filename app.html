@@ -8650,7 +8650,7 @@ async function authLogin(){
         try{sessionStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
         if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
         setTimeout(function(){
-          window.location.href='admin-platform.html';
+          window.location.href='admin-platform';
         },600);
       }else{
         var _ac=((_arl&&_arl.count)||0)+1;

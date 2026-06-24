@@ -4726,6 +4726,7 @@ function authSaveAdmins(admins){
 function authIsLoggedIn(){
   var session=null;
   try{session=JSON.parse(sessionStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
+  if(!session)try{session=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null')}catch(e){}
   if(!session)return false;
   if(session.exp<Date.now())return false;
   return true;
