@@ -7151,7 +7151,9 @@ function jbPull(cb) {
     var _supabaseEmpty = !Array.isArray(rows) || rows.length === 0 ||
                          !(rows[0].data && rows[0].data.clients && rows[0].data.clients.length);
     if(_supabaseEmpty){
-      var _lsBackup=null;try{_lsBackup=Store.get('terr1');}catch(e){}
+      // Ne pas utiliser le backup localStorage du Profil 1 si on est en Profil 2 :
+      // terr1 contient les données du Profil 1, les charger ici écraserait la base de Maxime.
+      var _lsBackup=null;if(!_isProfile2()){try{_lsBackup=Store.get('terr1');}catch(e){}}
       if(_lsBackup&&_lsBackup.clients&&_lsBackup.clients.length){
         // Backup localStorage trouvé → restaurer vers Supabase
         S.clients         = _lsBackup.clients         || [];
@@ -8647,10 +8649,19 @@ async function authLogin(){
         try{localStorage.removeItem('admin_rl')}catch(e){}
         var session2={id:'admin2',username:user,role:'super',exp:Date.now()+8*60*60*1000};
         try{localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
-        try{sessionStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(session2))}catch(e){}
+        sbStartRealtime();
         if(btn2){btn2.textContent='ACCES ACCORDE ✓';btn2.style.background='#22c55e';btn2.disabled=false;}
         setTimeout(function(){
-          window.location.href='admin-platform';
+          document.getElementById('auth-screen').classList.add('hidden');
+          portalCid=null;portalMe=null;
+          showScr('admin');
+          try{var _u=new URL(window.location.href);_u.searchParams.delete('portal');_u.searchParams.delete('p');window.history.replaceState({},'',_u.toString());}catch(e){}
+          jbPull(function(ok){
+            if(ok){renderSb();if(S.clients.length&&!activeC)selClient(S.clients[0].id);}
+          });
+          var badge=document.querySelector('.abadge');
+          if(badge)badge.textContent='Admin — '+user+' (Base 2)';
+          _showProfileBadge(2);
         },600);
       }else{
         var _ac=((_arl&&_arl.count)||0)+1;
